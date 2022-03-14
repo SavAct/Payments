@@ -1,0 +1,7 @@
+*.wasm
+*.wasm.*
+*.code-workspace
+.vs/
+.vscode/
+build/
+
