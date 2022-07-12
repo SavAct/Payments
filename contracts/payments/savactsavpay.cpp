@@ -1,4 +1,4 @@
-#include <savactsavpay.hpp>
+#include "savactsavpay.hpp"
 
 void savactsavpay::setRam(const name& from, const name& to, const asset& fund, const uint32_t maxTime, const bool relative){
     check(from != get_self(), "Can not buy RAM for the contract account.");
@@ -67,7 +67,7 @@ ACTION savactsavpay::removeram(const name& from, const name& to){
 
 ACTION savactsavpay::settoken(name tokenContract, symbol tokenSymbol, uint32_t openBytes){
     require_auth(get_self());
-    check(is_account(tokenContract), "Contract does not ecists.");
+    check(is_account(tokenContract), "Contract does not exists.");
     tokens_table _tokens_table(get_self(), tokenContract.value);
 
     auto itr = _tokens_table.find(tokenSymbol.raw());

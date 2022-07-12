@@ -204,7 +204,7 @@ CONTRACT savactsavpay : public contract {
      * 
      * @param tokenContract Contract name of the token
      * @param tokenSymbol Symbol of the token
-     * @param openBytes Bytes of RAM to open an entry for an account name
+     * @param openBytes Bytes of RAM to open an entry for an account name. For the eosio.token contract of 2022 it is 240 Byte 
      */
     ACTION settoken(name tokenContract, symbol tokenSymbol, uint32_t openBytes);
 
