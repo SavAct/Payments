@@ -20,12 +20,14 @@
   "dependencies": {
     "@types/chai-as-promised": "^7.1.2",
     "@types/chai-datetime": "^0.0.37",
+    "bs58": "^5.0.0",
     "call-bind": "^1.0.2",
     "chai-as-promised": "^7.1.1",
     "chai-datetime": "^1.8.0",
-    "eosjs": "^20.0.0",
+    "eosjs": "^22.1.0",
+    "eosjs-ecc": "^4.0.7",
     "lamington": "https://github.com/Alien-Worlds/lamington.git",
-    "node-fetch": "^2.0.0",
+    "node-fetch": "^3.2.8",
     "typescript": "^4.4.3"
   }
 }

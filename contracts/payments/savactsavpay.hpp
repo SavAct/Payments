@@ -1148,7 +1148,7 @@ CONTRACT savactsavpay : public contract {
                     // TODO: Add Mark for Vote by setting the firt byte to an invisible value
                 }
                 check(p.hasTime, "Missing time limit.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 if(p.hasFrom){
                     pay(p.from, p.to, fund, token_contract, p.memo, p.time);
                 } else {
@@ -1162,35 +1162,35 @@ CONTRACT savactsavpay : public contract {
             case Conversion::ActionType::REJ:
                 check(p.hasId, "Missing id.");
                 check(p.hasTime, "Missing signature time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 rejectsig(Conversion::String_to_public_key(p.to), p.id, p.time, p.sig);
                 break;
             case Conversion::ActionType::FIN:
                 check(p.hasId, "Missing id.");
                 check(p.hasTime, "Missing signature time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 finalizesig(p.to, p.id, p.time, p.sig);
                 break;
             case Conversion::ActionType::INV:
                 check(p.hasId, "Missing id.");
                 check(p.hasTime, "Missing signature time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 finalizesig(p.to, p.id, p.time, p.sig);
                 break;
             case Conversion::ActionType::OFF:
                 check(p.hasId, "Missing id.");
                 check(p.hasTime, "Missing signature time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 check(p.hasRecipient, "Missing recipient account.");
                 payoffsig(p.to, p.id, p.recipient, p.time, p.sig);
                 break;
             case Conversion::ActionType::ALL:
                 check(p.hasTime, "Missing signature time time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 check(p.hasRecipient, "Missing recipient account.");
                 check(p.hasRecipientPublicKey, "Missing recipient public key.");
@@ -1198,7 +1198,7 @@ CONTRACT savactsavpay : public contract {
                 break;
             case Conversion::ActionType::ACC:
                 check(p.hasTime, "Missing signature time time.");
-                check(p.relativeTime, "Need an absolute time stamp.");
+                check(!p.relativeTime, "Need an absolute time stamp.");
                 check(p.hasSignature, "Missing signature.");
                 check(p.hasRecipient, "Missing recipient account.");
                 check(p.hasRecipientPublicKey, "Missing recipient public key.");
