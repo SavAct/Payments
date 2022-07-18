@@ -8,7 +8,7 @@
   "keepAlive": true,
   "reporter": "List",
   "outDir": "artifacts",
-  "skipSystemContracts": true,
+  "skipSystemContracts": false,
   "include": [
     "savactsavpay.cpp",
     "eosio.token.cpp"

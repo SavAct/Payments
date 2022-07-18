@@ -1,4 +1,4 @@
-import { ContractDeployer, assertRowsEqual, AccountManager, Account, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain } from 'lamington'
+import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader } from 'lamington'
 import * as chai from 'chai'
 import { Savactsavpay } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
@@ -38,34 +38,43 @@ interface Token {
 
 const savpay_contract_name = 'savactsavpay'
 const nirvana_name = 'stake.savact'
+const sys_token_acc_name = 'eosio.token'
+const sys_token_symbol = new Symbol('EOS', 4)
 let sys_token: Token
 let custom_token: Token
+let sys_token_acc: Account
 
 describe('SavAct SavPay', () => {
   before(async () => {
-    sys_token = {
-      contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'eosio.token'),
-      symbol: new Symbol('EOS', 4),
-    }
-    custom_token = {
-      contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'usd.token'),
-      symbol: new Symbol('USD', 2),
-    }
+    EOSManager.initWithDefaults()
 
-    contract = await ContractDeployer.deployWithName<Savactsavpay>('contracts/payments/savactsavpay', savpay_contract_name)
-
+    // Create accounts
     nirvana = await AccountManager.createAccount(nirvana_name)
     sender1 = await AccountManager.createAccount('sender1')
     sender2 = await AccountManager.createAccount('sender2')
 
-    await issueTokens(sys_token, [sender1, sender2])
-    await issueTokens(custom_token, [sender1, sender2])
-    await updateAuths(contract.account)
+    // Issue system tokens
+    sys_token_acc = new Account(sys_token_acc_name, EOSManager.adminAccount.privateKey, EOSManager.adminAccount.publicKey)
+    sys_token = {
+      contract: await ContractLoader.at<EosioToken>(sys_token_acc),
+      symbol: sys_token_symbol,
+    }
+    await issueToken(sys_token, [sender1, sender2], 10000000, EOSManager.adminAccount)
 
-    EOSManager.initWithDefaults() // TODO: Use system token with RAM management
+    // Deploy, initialize and issue a custom token
+    custom_token = {
+      contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'fiat.token'),
+      symbol: new Symbol('FIAT', 2),
+    }
+    await initToken(custom_token)
+    await issueToken(custom_token, [sender1, sender2], 10000)
+
+    // Deploy SavPay and set eosio.code permission
+    contract = await ContractDeployer.deployWithName<Savactsavpay>('contracts/payments/savactsavpay', savpay_contract_name)
+    await updateAuths(contract.account)
   })
 
-  // Set token to accepted list
+  // Set system token to accepted list
   context('set system token', async () => {
     it('should fail with auth error', async () => {
       await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: sys_token.contract.account }))
@@ -158,9 +167,8 @@ async function updateAuths(account: Account) {
   )
 }
 
-async function issueTokens(token: Token, accounts: Array<Account>) {
+async function initToken(token: Token) {
   const iniAssetString = new Asset(10000000000000, token.symbol).toString()
-  const sharedAssetString = new Asset(1000000000, token.symbol).toString()
 
   try {
     await token.contract.create(token.contract.account.name, iniAssetString, {
@@ -173,9 +181,15 @@ async function issueTokens(token: Token, accounts: Array<Account>) {
       throw e
     }
   }
+}
 
+async function issueToken(token: Token, accounts: Array<Account>, amountPerAcc: number, sender?: Account) {
+  const sharedAssetString = new Asset(amountPerAcc, token.symbol).toString()
+  if (!sender) {
+    sender = token.contract.account
+  }
   for (let account of accounts) {
-    await token.contract.transfer(token.contract.account.name, account.name, sharedAssetString, 'inital balance', { from: token.contract.account })
+    await token.contract.transfer(sender.name, account.name, sharedAssetString, 'inital balance', { from: sender })
   }
 }
 
