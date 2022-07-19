@@ -1,8 +1,15 @@
+/*  Attention: Even by setting skipSystemContracts to false, the test network seems not to provide all eosio.system actions like buyrambytes().
+ *  Change "eosio" to "systemdummy" in eosioHandler.hpp to get around this provisionally and execute this test.
+ *  Do not forget to set it back for production!
+ */
+
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader } from 'lamington'
 import * as chai from 'chai'
 import { Savactsavpay } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
+import { Systemdummy } from '../systemdummy/systemdummy'
 import base58 = require('bs58')
+import { Serialize } from 'eosjs'
 
 let contract: Savactsavpay
 let sender1: Account, sender2: Account, sender3: Account
@@ -29,6 +36,8 @@ class Asset {
       return `${withZeros.substring(0, dotPos)}.${withZeros.substring(dotPos)} ${this.symbol.name}`
     }
   }
+
+  static From(assetStr: string) {}
 }
 
 interface Token {
@@ -47,6 +56,10 @@ let sys_token_acc: Account
 describe('SavAct SavPay', () => {
   before(async () => {
     EOSManager.initWithDefaults()
+
+    // Deploy and initialize system dummy contract
+    const sys_contract = await ContractDeployer.deployWithName<Systemdummy>('contracts/systemdummy/systemdummy', 'systemdummy')
+    sys_contract.setramstate('10000000000.0000 RAMCORE', '234396016922 RAM', '6016100.1948 EOS')
 
     // Create accounts
     nirvana = await AccountManager.createAccount(nirvana_name)
@@ -75,60 +88,83 @@ describe('SavAct SavPay', () => {
   })
 
   // Set system token to accepted list
-  context('set system token', async () => {
-    it('should fail with auth error', async () => {
-      await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: sys_token.contract.account }))
-    })
-    it('should succeed', async () => {
-      await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: contract.account })
-    })
-    it('should update tokens table', async () => {
-      let {
-        rows: [item],
-      } = await contract.tokensTable({ scope: sys_token.contract.account.name })
-      chai.expect(item.token).equal(sys_token.symbol.toString(), 'Wrong token contract')
-      chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+  context('A/3 contract initialisation', async () => {
+    context('set system token', async () => {
+      it('should fail with auth error 1', async () => {
+        await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: sys_token.contract.account }))
+      })
+      it('should succeed 2', async () => {
+        await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: contract.account })
+      })
+      it('should update tokens table 3', async () => {
+        let {
+          rows: [item],
+        } = await contract.tokensTable({ scope: sys_token.contract.account.name })
+        chai.expect(item.token).equal(sys_token.symbol.toString(), 'Wrong token contract')
+        chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+      })
     })
   })
 
-  // Transfer
-  console.log('Transfer')
+  // Payment via on_notify transfer
   let inOneDay: number
   let inOneDayBs58: string
   let sendAsset: Asset
   let sendAssetString: string
-  context('send token', async () => {
+  context('B/8 send token to name', async () => {
     before(async () => {
       inOneDay = Math.round(Date.now() / 1000 + 3600 * 24)
       inOneDayBs58 = base58.encode(numberTouInt32(inOneDay).reverse())
       sendAsset = new Asset(10000, sys_token.symbol)
       sendAssetString = sendAsset.toString()
     })
-    context('without wrong auth', async () => {
-      it('should fail with auth error', async () => {
+    context('from name', async () => {
+      it('should fail with wrong auth 1', async () => {
         await assertMissingAuthority(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name}.${inOneDayBs58}`, { from: sender2 }))
       })
+      it('should succeed with correct auth 2', async () => {
+        await sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name}!${inOneDayBs58}`, { from: sender1 })
+      })
+      it('should update pay2name table 3', async () => {
+        let {
+          rows: [item],
+        } = await contract.pay2nameTable({ scope: sender2.name })
+        chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
+        chai.expect(item.from).equal(nameToFromHex(sender1.name), 'Wrong sender')
+        chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+        // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+        chai.expect(item.memo).equal('', 'There should no memo be defined')
+        chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
+        chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
+      })
+      it('should succeed with several signs in the memo 4', async () => {
+        await sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name}!${inOneDayBs58};hello;!@$again`, { from: sender1 })
+        chai.expect((await contract.pay2nameTable({ scope: sender2.name })).rows.length).equal(2)
+      })
+      it('should fail with spaces between the commands 5', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name} !${inOneDayBs58};withspaces`, { from: sender1 }), 'character is not in allowed character set for names')
+      })
+      it('should fail without time value 6', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name}`, { from: sender1 }), 'Missing time limit.')
+      })
+      it('should fail without recipient 7', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `!${inOneDayBs58}`, { from: sender1 }), 'Recipient does not exists.')
+      })
+      it('should fail with a non existent recipient 8', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@nonexistent!${inOneDayBs58}`, { from: sender1 }), 'Recipient does not exists.')
+      })
     })
-
-    // context('with correct auth', async () => {
-    //   it('should succeed', async () => {
-    //     // The following function needs the action buyram of the system contract
-    //     await sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.name}!${inOneDayBs58}`, { from: sender1 })
-    //   })
-    //   it('should update stats table', async () => {
-    //     let {
-    //       rows: [item],
-    //     } = await contract.pay2nameTable()
-    //     chai.expect(item.contract).equal(custom_token.contract.account.name, 'Wrong token contract')
-    //     chai.expect(item.from).equal(sender1.name, 'Wrong sender')
-    //     chai.expect(item.fund).equal(sendAssetString, 'Send amount is wrong')
-    //     chai.expect(String(item.id)).equal('0', 'Wrong id')
-    //     chai.expect(item.memo).equal('', 'There should no memo be defined')
-    //     chai.expect(item.ramBy).equal(sender1.name, 'Wrong RAM payer') //-
-    //     chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
-    //   })
-    // })
+    context('from public key', async () => {
+      //TODO:
+    })
   })
+  context('C/? send token to public key', async () => {
+    //TODO:
+  })
+  context('D/? deposited RAM', async () => {
+    //TODO:
+  })
+  // TODO: ...
 })
 
 function numberTouInt32(num: number) {
@@ -193,6 +229,39 @@ async function issueToken(token: Token, accounts: Array<Account>, amountPerAcc: 
   }
 }
 
+/*
+ * Convert an EOSIO name to a big integer
+ * @param name EOSIO name
+ * @returns The number corresponding to the name
+ */
+function nameToUint64(name: string) {
+  const buffer = new Serialize.SerialBuffer()
+  buffer.pushName(name)
+  return Buffer.from(buffer.asUint8Array()).readBigUInt64BE()
+}
+
+function nameToFromHex(name: string) {
+  return nameToUint64(name).toString(16).padStart(16, '0')
+}
+
+const stringToAsset = (asset_str: string): Asset => {
+  if (typeof asset_str != 'string') {
+    throw `Asset string is not defined`
+  }
+  let s = asset_str.indexOf('.')
+  if (s == -1) {
+    throw `Missing precision of asset string: ${asset_str}`
+  }
+  let e = asset_str.indexOf(' ', s)
+  if (e == -1) {
+    throw `Missing symbol of asset string: ${asset_str}`
+  }
+  let precision = e - s - 1
+  let name = asset_str.substring(e + 1).trim()
+  let amount = Number(BigInt(asset_str.substring(0, s) + asset_str.substring(s + 1, e)))
+  return new Asset(amount, new Symbol(name, precision))
+}
+
 // TODO: Write tests for every case
 
 // Actions for testing (TODO: Delete them from contract files):
@@ -228,3 +297,7 @@ async function issueToken(token: Token, accounts: Array<Account>, amountPerAcc: 
 // contract.removeram
 // contract.settoken
 // contract.removetoken
+
+// Notes:
+// Table parameter "ramBy" is the contract account if the recipient will get the RAM after the transaction is finalized.
+// Table parameter "from" is the sender account name value as byte vector

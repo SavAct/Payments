@@ -11,6 +11,7 @@
   "skipSystemContracts": false,
   "include": [
     "savactsavpay.cpp",
-    "eosio.token.cpp"
+    "eosio.token.cpp",
+    "systemdummy.cpp"
   ]
 }

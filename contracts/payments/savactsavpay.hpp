@@ -1104,7 +1104,8 @@ CONTRACT savactsavpay : public contract {
      * @return Primary key 
      */
     uint64_t getIndividualPrimaryKey(const pay2name_table& table, const vector<char>& from){
-        // Note: possible alternative for a random number in a contract https://github.com/EOSBlox/random
+        // Alternative 1: A random number in a contract https://github.com/EOSBlox/random
+        // Alternative 2: An up counting number which will never fall back, even when all table entries are deleted (this is not the case with available_primary_key() )
         uint64_t currentTime = (uint64_t) eosio::current_time_point().sec_since_epoch();
         uint64_t id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix());
         while (table.find(id) != table.end()) {
