@@ -5,11 +5,15 @@
 
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader } from 'lamington'
 import * as chai from 'chai'
-import { Savactsavpay } from './savactsavpay'
+import { Savactsavpay, SavactsavpayPay2key } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
 import { Systemdummy } from '../systemdummy/systemdummy'
 import base58 = require('bs58')
 import { Serialize } from 'eosjs'
+import { ecc } from 'eosjs/dist/eosjs-ecc-migration'
+import { PublicKey } from 'eosjs/dist/PublicKey'
+import { PrivateKey } from 'eosjs/dist/PrivateKey'
+import { KeyType } from 'eosjs/dist/eosjs-numeric'
 
 let contract: Savactsavpay
 let sender1: Account, sender2: Account, sender3: Account
@@ -53,6 +57,14 @@ let sys_token: Token
 let custom_token: Token
 let sys_token_acc: Account
 
+const priKey1K1 = PrivateKey.fromString('5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3')
+const pubKey1K1 = priKey1K1.getPublicKey()
+const priKey1R1 = PrivateKey.fromString('PVT_R1_22GrF17GDTkkdLG9FnqPAUJ8LNaqSK7aKbKxyVy9gxX795E8mQ')
+const pubKey1R1 = priKey1R1.getPublicKey()
+console.log('Legacy K1', pubKey1K1.toLegacyString())
+console.log('K1', pubKey1K1.toString())
+console.log('R1', pubKey1R1.toString())
+
 describe('SavAct SavPay', () => {
   before(async () => {
     EOSManager.initWithDefaults()
@@ -88,7 +100,7 @@ describe('SavAct SavPay', () => {
   })
 
   // Set system token to accepted list
-  context('A/3 contract initialisation', async () => {
+  context('A/3 contract initialization', async () => {
     context('set system token', async () => {
       it('should fail with auth error 1', async () => {
         await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: sys_token.contract.account }))
@@ -111,7 +123,7 @@ describe('SavAct SavPay', () => {
   let inOneDayBs58: string
   let sendAsset: Asset
   let sendAssetString: string
-  context('B/8 send token to name', async () => {
+  context('B/16 send token to name', async () => {
     before(async () => {
       inOneDay = Math.round(Date.now() / 1000 + 3600 * 24)
       inOneDayBs58 = base58.encode(numberTouInt32(inOneDay).reverse())
@@ -155,7 +167,49 @@ describe('SavAct SavPay', () => {
       })
     })
     context('from public key', async () => {
-      //TODO:
+      it('should fail with invalid key length 9', async () => {
+        const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aa' + pubKey1K1.toLegacyString().substring(10)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: sender1 }), 'Invalid length of public key.')
+      })
+      it('should fail with typo in legacy key 10', async () => {
+        const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toLegacyString().substring(16)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: sender1 }), 'Wrong checksum, check the public key for typos.')
+      })
+      it('should succeed with legacy key 11', async () => {
+        await sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${pubKey1K1.toLegacyString()}!${inOneDayBs58}`, { from: sender1 })
+      })
+      it('should fail with typo in K1 key 12', async () => {
+        const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${wrong_pubkeyk1}!${inOneDayBs58}`, { from: sender1 }), 'Wrong checksum, check the public key for typos.')
+      })
+      it('should succeed with K1 key 13', async () => {
+        await sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58}`, { from: sender1 })
+      })
+      it('should fail with R1 key 14', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${pubKey1R1.toString()}!${inOneDayBs58}`, { from: sender1 }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+      })
+      it('should update pay2name table 15', async () => {
+        const splitKey1K1 = splitPubKeyToScopeAndTableVec(pubKey1K1)
+        let {
+          rows: [item1, item2],
+        } = await contract.pay2keyTable({ scope: splitKey1K1.scope.toString() })
+
+        const testPay2KeyTable = (item: SavactsavpayPay2key) => {
+          chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
+          chai.expect(item.from).equal(nameToFromHex(sender1.name), 'Wrong sender')
+          chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+          // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+          chai.expect(item.memo).equal('', 'There should no memo be defined')
+          chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
+          chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
+          chai.expect(item.to).equal(splitKey1K1.tableVec, 'Wrong recipient pub key')
+        }
+        testPay2KeyTable(item1)
+        testPay2KeyTable(item2)
+      })
+      it('should fail without time value 16', async () => {
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(sender1.name, contract.account.name, sendAssetString, `@${sender2.publicKey}`, { from: sender1 }), 'Missing time limit.')
+      })
     })
   })
   context('C/? send token to public key', async () => {
@@ -262,7 +316,20 @@ const stringToAsset = (asset_str: string): Asset => {
   return new Asset(amount, new Symbol(name, precision))
 }
 
+function splitPubKeyToScopeAndTableVec(pubkey: PublicKey) {
+  const hex = pubkey.toElliptic().getPublic(true, 'hex')
+  const array = pubkey.toElliptic().getPublic(true, 'array')
+  let scopeHex = '0x'
+  for (let i = array.length - 1; i >= array.length - 8; i--) {
+    scopeHex += array[i].toString(16).padStart(2, '0')
+  }
+  const scope = BigInt(scopeHex)
+  const typehex = pubkey.getType().toString(16).padStart(2, '0')
+  return { scope, tableVec: hex.substring(0, hex.length - 16) + typehex }
+}
+
 // TODO: Write tests for every case
+// TODO: Check scope values around the edges
 
 // Actions for testing (TODO: Delete them from contract files):
 // contract.clearallkey

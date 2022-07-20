@@ -306,7 +306,7 @@ void savactsavpay::addpayment(const vector<char>& from, const name to, const ass
 void savactsavpay::addpayment(const vector<char>& from, const public_key& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
     check(memo.size() < 256, "Memo is too long.");
     uint64_t to_scope;
-    auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(to_key, to_scope);
+    auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, to_scope);
 
     pay2key_table _pay2key(get_self(), to_scope);
 
@@ -361,7 +361,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
     
     // Get table
     uint64_t scope;
-    auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(to_pub_key, scope);
+    auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_pub_key, scope);
     pay2key_table _pay2key(self, scope);
 
     // Find each expired entry and sum up the funds and RAM which will be free

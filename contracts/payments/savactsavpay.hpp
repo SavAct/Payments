@@ -418,7 +418,7 @@ CONTRACT savactsavpay : public contract {
 
         // Find entry
         uint64_t scope;
-        auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(to, scope);
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to, scope);
         pay2key_table _pay2key(get_self(), scope);
         auto itr = _pay2key.find(id);
 
@@ -501,7 +501,7 @@ CONTRACT savactsavpay : public contract {
             
             // Find entry
             uint64_t scope;
-            auto vec_to = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto vec_to = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -570,7 +570,7 @@ CONTRACT savactsavpay : public contract {
 
             // Find entry
             uint64_t scope;
-            auto vec_to = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto vec_to = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -636,7 +636,7 @@ CONTRACT savactsavpay : public contract {
             
             // Find entry
             uint64_t scope;
-            auto vec_to = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto vec_to = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -704,7 +704,7 @@ CONTRACT savactsavpay : public contract {
 
             // Find entry
             uint64_t scope;
-            auto vec_to = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto vec_to = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -777,7 +777,7 @@ CONTRACT savactsavpay : public contract {
             // Find entry
             uint64_t scope;
             public_key to_key = Conversion::String_to_public_key(to); 
-            auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -844,7 +844,7 @@ CONTRACT savactsavpay : public contract {
 
             // Find entry
             uint64_t scope;
-            auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(to_key, scope);
+            auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, scope);
             pay2key_table _pay2key(get_self(), scope);
             auto itr = _pay2key.find(id);
 
@@ -935,7 +935,7 @@ CONTRACT savactsavpay : public contract {
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
         
         uint64_t scope;
-        auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(sign_pub_key, scope);
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(sign_pub_key, scope);
         pay2key_table _pay2key(get_self(), scope);
 
         // Check the signature with the recipient of the payment
@@ -1013,7 +1013,7 @@ CONTRACT savactsavpay : public contract {
         
         // Get table
         uint64_t scope;
-        auto to_vec = Conversion::GetVectorFromPubKeySplitFormt(sign_pub_key, scope);
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(sign_pub_key, scope);
         pay2key_table _pay2key(get_self(), scope);
         
         // Check the signature with the recipient of the payment

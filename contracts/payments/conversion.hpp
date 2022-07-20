@@ -13,14 +13,15 @@ public:
 	/** Convert the pulic key from string to public key type.
 	*	@return The public key. Returns the type on public_key.index()
 	*/
-	static public_key String_to_public_key(const string& public_key_str)
-	{
+	static public_key String_to_public_key(const string& public_key_str) {
 		// Check the prefix currently for "K1" and "R1" key type
-        KeyType keyType; 
+        KeyType keyType;
+        bool legacy = false;
 		string pubkey_prefix("EOS");
 		auto result = mismatch(pubkey_prefix.begin(), pubkey_prefix.end(), public_key_str.begin());
         if(result.first == pubkey_prefix.end()){
             keyType = K1;
+            legacy = true;
         } else {
             pubkey_prefix = string("PUB_K1_");
             result = mismatch(pubkey_prefix.begin(), pubkey_prefix.end(), public_key_str.begin());
@@ -41,16 +42,34 @@ public:
 		// Decode the string with base 58
 		vector<unsigned char> vch;
 		check(Base58::decode_base58(base58substr, vch), "Decoding of public key failed.");
-		check(vch.size() == 37, "Invalid public key");
+		check(vch.size() == 37, "Invalid public key.");
 
 		// Store the first 33 byte in an array
 		ecc_public_key pubkey_data; //array<unsigned char,33> pubkey_data;
 		copy_n(vch.begin(), 33, pubkey_data.begin());
 
 		// Check checksum
-		checksum160 checksum = ripemd160(reinterpret_cast<char*>(pubkey_data.data()), 33);
+		checksum160 checksum;
+        if(legacy){
+            checksum = ripemd160(reinterpret_cast<char*>(pubkey_data.data()), 33);   
+        } else {
+            array<unsigned char, 35> pubkey_data_with_prefix;
+            copy_n(vch.begin(), 33, pubkey_data_with_prefix.begin());
+            switch (keyType) {
+                case K1:
+                    pubkey_data_with_prefix[33] = 75;   // K
+                    pubkey_data_with_prefix[34] = 49;   // 1
+                    break;
+                case R1:
+                    pubkey_data_with_prefix[33] = 82;   // R
+                    pubkey_data_with_prefix[34] = 49;   // 1
+                    break;
+                default: check(vch.size() == 37, "Not supported public key type.");
+            }
+            checksum = ripemd160(reinterpret_cast<char*>(pubkey_data_with_prefix.data()), 35);
+        }
 		int res = memcmp(checksum.extract_as_byte_array().data(), &vch.end()[-4], 4);
-		check(res == 0, "ERROR: Wrong checksum, check the public key for typos.");
+		check(res == 0, "Wrong checksum, check the public key for typos.");
 
 		return EccToPubKey(pubkey_data, keyType);
 	}
@@ -174,7 +193,7 @@ public:
      * @param scope This value will be overwritten
      * @return Vector of the public key without the scope part but with the key type
      */
-    static std::vector<char> GetVectorFromPubKeySplitFormt(const public_key& pub_key, uint64_t& scope) {
+    static std::vector<char> GetVectorFromPubKeySplitFormat(const public_key& pub_key, uint64_t& scope) {
         auto keyType = pub_key.index();
         ecc_public_key ecc_key = PubKeyToEcc(pub_key, (KeyType)keyType);
         
