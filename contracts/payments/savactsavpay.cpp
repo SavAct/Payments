@@ -96,33 +96,19 @@ ACTION savactsavpay::removetoken(name tokenContract, symbol tokenSymbol){
     _tokens_table.erase(itr);
 }
 
-int32_t savactsavpay::getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym){
+int32_t savactsavpay::getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo){
     int32_t neededRAM;
     check(isTokenAccepted(self, token_contract, sym, neededRAM), "Token is not accepted.");
-    if(neededRAM < ram_system_token_open_entry){
-        neededRAM = ram_system_token_open_entry;
+    
+    neededRAM += getStringStorageSize(memo);
+    if(isName_To){
+        neededRAM += isName_From? ram_pay2name_entry_from_name : ram_pay2name_entry_from_key;
+    } else {
+        neededRAM += isName_From? ram_pay2key_entry_from_name : ram_pay2key_entry_from_key;
     }
 
-    if(isName_To){
-        if(isName_From){
-            if(ram_pay2name_entry_from_name > neededRAM){
-                return ram_pay2name_entry_from_name;
-            }
-        } else {
-            if(ram_pay2name_entry_from_key > neededRAM){
-                return ram_pay2name_entry_from_key;
-            }
-        }
-    } else {
-        if(isName_From){
-            if(ram_pay2key_entry_from_name > neededRAM){
-                return ram_pay2key_entry_from_name;
-            }
-        } else {
-            if(ram_pay2key_entry_from_key > neededRAM){
-                return ram_pay2key_entry_from_key;
-            }
-        }
+    if(neededRAM < ram_system_token_open_entry){
+        neededRAM = ram_system_token_open_entry;
     }
     return neededRAM;
 }
@@ -143,7 +129,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     bool isName_From = fromVec.size() <= 12;
 
     // Consider the maximal amount of RAM which could be needed for all options and check if token is accepted
-    auto neededRAM = getRamForPayment(get_self(), isName_From, isName_To, token_contract, fund.symbol);
+    auto neededRAM = getRamForPayment(get_self(), isName_From, isName_To, token_contract, fund.symbol, memo);
 
     // Switch between name or key recipient
     if(isName_To){
@@ -152,7 +138,13 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         uint64_t to_scope = to_name.value;
         check(is_account(to_name), "Recipient does not exists.");
 
+        pay2name_table _pay2name(get_self(), to_name.value);
         ram_table _ram(get_self(), to_scope);
+
+        // Add the extra RAM for the first entry // This will not be withdrawal afterwarts
+        if(!hasScope(_pay2name)){
+            neededRAM += ram_scope;
+        }
 
         // Search for a free RAM payer for this recipient
         auto itr = getFreeRAMPayer(neededRAM, time, currentTime, _ram);
@@ -178,17 +170,28 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         }
 
         // Add payment to table
-        addpayment(fromVec, to_name, fund, token_contract, memo, time, ram_payer);
+        addpayment(_pay2name, fromVec, to_name, fund, token_contract, memo, time, ram_payer);
     } else {
+
         // Recipient is a key
         auto to_key = Conversion::String_to_public_key(to);
+
+        // Get scope and rest of the key
+        uint64_t to_scope;
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, to_scope);
+        pay2key_table _pay2key(get_self(), to_scope);
+
+        // Add the extra RAM for the first entry // This will not be withdrawal afterwarts
+        if(!hasScope(_pay2key)){
+            neededRAM += ram_scope;
+        }
 
         // Buy needed RAM and reduce the fund amount accordingly
         fund.amount -= EosioHandler::calcRamBytes(neededRAM);
         EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
 
         // Add payment to table
-        addpayment(fromVec, to_key, fund, token_contract, memo, time, get_self());
+        addpayment(_pay2key, fromVec, to_vec, fund, token_contract, memo, time, get_self());
     }
 }
 
@@ -286,14 +289,12 @@ bool savactsavpay::isTokenAccepted(const name& self, const name& token_contract,
     return false;
 }
 
-void savactsavpay::addpayment(const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
+void savactsavpay::addpayment(pay2name_table& table, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
     check(memo.size() < 256, "Memo is too long.");
 
-    pay2name_table _pay2name(get_self(), to.value);
-
     // Create a new entry
-    _pay2name.emplace(get_self(), [&](auto& p) {
-        p.id = getIndividualPrimaryKey(_pay2name, from);
+    table.emplace(get_self(), [&](auto& p) {
+        p.id = getIndividualPrimaryKey(table, from);
         p.from = from;        // from = std::vector<char>(from_key.begin(), &from_key[PubKeyWithoutPrimarySize]);		
         p.fund = fund;
         p.contract = token_contract;
@@ -303,16 +304,12 @@ void savactsavpay::addpayment(const vector<char>& from, const name to, const ass
     });
 }
 
-void savactsavpay::addpayment(const vector<char>& from, const public_key& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
+void savactsavpay::addpayment(pay2key_table& table, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
     check(memo.size() < 256, "Memo is too long.");
-    uint64_t to_scope;
-    auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, to_scope);
-
-    pay2key_table _pay2key(get_self(), to_scope);
 
     // Create a new entry
-    _pay2key.emplace(get_self(), [&](auto& p) {
-        p.id = getIndividualPrimaryKey(_pay2key, from);
+    table.emplace(get_self(), [&](auto& p) {
+        p.id = getIndividualPrimaryKey(table, from);
         p.to = to_vec;
         p.from = from;        // from = std::vector<char>(from_key.begin(), &from_key[PubKeyWithoutPrimarySize]);		
         p.fund = fund;
@@ -354,11 +351,7 @@ void savactsavpay::freeRamUsage(const name& self, const name& from, const name& 
     });
 }
 
-int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub_key, const name& token_contract, asset& fund, const uint32_t currenttime, const name& self){
-    // Get free RAM for each case
-    auto _ram_from_name_to_key = getRamForPayment(self, true, false, token_contract, fund.symbol);
-    auto _ram_from_key_to_key = getRamForPayment(self, false, false, token_contract, fund.symbol);
-    
+int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub_key, const name& token_contract, asset& fund, const uint32_t currenttime, const name& self){    
     // Get table
     uint64_t scope;
     auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_pub_key, scope);
@@ -372,7 +365,11 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
         if(std::equal(to_vec.begin(), to_vec.end(), itr->to.begin()) && itr->fund.symbol == fund.symbol && itr->time < currenttime && itr->contract == token_contract){
             fund += itr->fund;
             itr = _pay2key.erase(itr);
-            freeRAM += itr->from.size() == 8? _ram_from_name_to_key : _ram_from_key_to_key;
+            if(itr->from.size() == 8){
+                freeRAM += getRamForPayment(self, true, false, token_contract, fund.symbol, itr->memo);
+            } else {
+                freeRAM += getRamForPayment(self, false, false, token_contract, fund.symbol, itr->memo);
+            }
             foundEntries = true;
         } else {
             itr++;
@@ -383,10 +380,6 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
 }
 
 int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const name& token_contract, asset& fund, const uint32_t currenttime, const name& self){
-    // Get free RAM for each case
-    auto _ram_from_name_to_name = getRamForPayment(self, true, true, token_contract, fund.symbol);
-    auto _ram_from_key_to_name = getRamForPayment(self, false, true, token_contract, fund.symbol);
-
     // Get table
     pay2name_table _pay2name(self, to.value);
     
@@ -399,7 +392,12 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const n
     bool foundEntries = false;
     while(itr != _pay2name.end()) {
         if(itr->fund.symbol == fund.symbol && itr->time < currenttime && itr->contract == token_contract){
-            int tempFree = itr->from.size() == 8? _ram_from_name_to_name : _ram_from_key_to_name;
+            int tempFree;
+            if(itr->from.size() == 8){
+                tempFree = getRamForPayment(self, true, true, token_contract, fund.symbol, itr->memo);
+            } else {
+                tempFree = getRamForPayment(self, false, true, token_contract, fund.symbol, itr->memo);
+            }
             if(itr->ramBy != self){
                 auto ram_itr = _ram.find(itr->ramBy.value);
                 check(ram_itr != _ram.end(), "RAM entry does not exist.");  // This cannot happen, just for double checking
@@ -436,4 +434,18 @@ void savactsavpay::buyAccount(const name& self, public_key& pubkey, name account
 
     // Buy RAM for the account
     EosioHandler::buyrambytes(self, account, ramForUser);
+}
+
+std::size_t savactsavpay::getStringStorageSize(const string& s){
+    std::size_t len = s.length();
+    if(len < 128){
+        return len + 1;
+    } else if(len < 16384){
+        return len + 2;
+    } else if(len < 2097151){
+        return len + 3;
+    } else if(len < 268435455){
+        return len + 4;
+    }
+    return len + 5;
 }

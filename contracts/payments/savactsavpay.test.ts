@@ -380,7 +380,8 @@ async function ramTrace(action: () => Promise<any>) {
   const ram_before = (await EOSManager.api.rpc.get_account(contract.account.name)).ram_usage
   const r = await action()
   const ram_after = (await EOSManager.api.rpc.get_account(contract.account.name)).ram_usage
-  let ramlog = `RAM delta ${ram_after - ram_before}`
+  const ram_delta = ram_after - ram_before
+  let ramlog = `RAM delta ${ram_delta}`
   // console.log('action_traces', r.processed.action_traces)
   // console.log('account_ram_deltas', r.processed.action_traces[0].account_ram_deltas)
   // let sumDeltaRAM = 0
@@ -389,15 +390,18 @@ async function ramTrace(action: () => Promise<any>) {
   // }
   // ramlog += ` Sum ${sumDeltaRAM}`
   // console.log('inline_traces', r.processed.action_traces[0].inline_traces)
+  let sumBought = 0;
   for (let t of r.processed.action_traces[0].inline_traces) {
     // console.log('inline_trace', t.act)
     if ('act' in t && 'name' in t.act && t.act.name == 'buyrambytes') {
       chai.expect(t.act.data.payer).equal(contract.account.name, 'Wrong RAM payer')
       chai.expect(t.act.data.receiver).equal(contract.account.name, 'Wrong RAM receiver')
+      sumBought += t.act.data.bytes
       ramlog += ` Bought ${t.act.data.bytes}`
     }
   }
   console.log(ramlog)
+  chai.expect(ram_delta).lessThanOrEqual(sumBought)
 }
 
 function numberTouInt32(num: number) {
@@ -546,3 +550,4 @@ function splitPubKeyToScopeAndTableVec(pubkey: PublicKey) {
 // Notes:
 // Table parameter "ramBy" is the contract account if the recipient will get the RAM after the transaction is finalized.
 // Table parameter "from" is the sender account name value as byte vector
+// Memo of token transfer is limited to 256 characters

@@ -10,15 +10,18 @@
 #include "conversion.hpp"
 #include "eosioHandler.hpp"
 
-// Should be messured
-#define ram_pay2name_entry_from_name 240
-#define ram_pay2name_entry_from_key 240
-#define ram_pay2key_entry_from_name 240
-#define ram_pay2key_entry_from_key 240
 
-#define ram_system_token_open_entry 240
 
-// Should be messured
+// Consumed RAM without scope and without memo
+#define ram_pay2name_entry_from_name 165    // Name to name 53 + 112 bytes new entry
+#define ram_pay2name_entry_from_key 191     // Key to name 79 + 112 bytes new entry
+#define ram_pay2key_entry_from_name 192     // Name to key 80 + 112 bytes new entry
+#define ram_pay2key_entry_from_key 218      // Key to key 106 bytes + 112 bytes new entry
+
+#define ram_scope 112                       // Consumed RAM for a new scope with 8 byte scope value
+#define ram_system_token_open_entry 240     // Consumed RAM to receive system tokens for the first time
+
+// TODO: Should be messured
 #define ram_ram_entry 240
 
 #define expirationTime 86400 // 24h
@@ -58,13 +61,13 @@ CONTRACT savactsavpay : public contract {
      * 
      */
     TABLE pay2name {
-        uint64_t id;                   // Primary key
-        std::vector<char> from;        // from = std::vector<char>(from_key.begin(), &from_key[PubKeyWithoutPrimarySize]);		
-        asset fund;
-        name contract;
-        uint32_t time;
-        string memo;
-        name ramBy;
+        uint64_t id;            // 8 bytes
+        vector<char> from;      // 35 bytes | 9 bytes
+        asset fund;             // 16 bytes
+        name contract;          // 8 bytes
+        uint32_t time;          // 4 bytes
+        string memo;            // variable bytes
+        name ramBy;             // 8 bytes
         auto primary_key() const { return id; }
     };
     typedef multi_index<name("pay2name"), pay2name> pay2name_table;
@@ -74,14 +77,14 @@ CONTRACT savactsavpay : public contract {
      * 
      */
     TABLE pay2key {
-        uint64_t id;
-        std::vector<char> from;
-        std::vector<char> to;
-        asset fund;
-        name contract;
-        uint32_t time;
-        string memo;
-        name ramBy;
+        uint64_t id;            // 8 bytes
+        vector<char> from;      // 35 bytes | 9 bytes
+        vector<char> to;        // 27 bytes
+        asset fund;             // 16 bytes
+        name contract;          // 8 bytes
+        uint32_t time;          // 4 bytes
+        string memo;            // variable bytes
+        name ramBy;             // 8 bytes
         auto primary_key() const { return id; }
     };
     typedef multi_index<name("pay2key"), pay2key> pay2key_table;
@@ -174,7 +177,7 @@ CONTRACT savactsavpay : public contract {
                 case 1: ecc_sig = std::get<1>(p.sig); break;
                 // case 2: ecc_sig = std::get<2>(p.sig); break;
             }
-            std::vector<char> v_sig(ecc_sig.begin(), ecc_sig.end());
+            vector<char> v_sig(ecc_sig.begin(), ecc_sig.end());
             v_sig.push_back((char)p.sig.index());
             
             str.append("; Sig: ").append(Conversion::vec_to_hex(v_sig));
@@ -252,8 +255,9 @@ CONTRACT savactsavpay : public contract {
      * @param isName_To Is the recipient of the payment an account name 
      * @param token_contract Contract of the token
      * @param sym Symbol of the token
+     * @param memo Memo entry
      */
-    static int32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym);
+    static int32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo);
 
     /** 
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -305,6 +309,7 @@ CONTRACT savactsavpay : public contract {
     /**
      * @brief Add a payment to pay2name-table.
      * 
+     * @param table Table with selected scope
      * @param from Sender as account name or public key
      * @param to Recipient as name
      * @param fund Asset of the token involved
@@ -313,19 +318,20 @@ CONTRACT savactsavpay : public contract {
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2name_table& table, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
     /**
      * @brief Add a payment to pay2key-table.
      * 
+     * @param table Table with selected scope
      * @param from Sender as account name or public key
-     * @param to_key Recipient as public key
+     * @param to_vec Recipient as public key without the part which is used as scope
      * @param fund Asset of the token involved
      * @param token_contract Contract of the token
      * @param memo Memo which will be set on pay off of the recipient
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(const vector<char>& from, const public_key& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2key_table& table, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
 
     /**
      * @brief Get the sender (user) as char vector and check if the sender is valid
@@ -364,6 +370,37 @@ CONTRACT savactsavpay : public contract {
     static bool isTokenAccepted(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t rambytes);
 
     /**
+     * @brief Get the eosio multi index storage size of a string (only up to 34,359,738,367 characters)
+     * 
+     * @param s String
+     * @return Size of the string 
+     */
+    static std::size_t getStringStorageSize(const string& s);
+
+    /**
+     * @brief Check if a scope is alreasy already defined
+     * 
+     * @param table Multi index table
+     * @return true 
+     * @return false 
+     */
+    static bool hasScope(const pay2name_table& table){
+        return table.available_primary_key() != 0;
+    }
+
+    /**
+     * @brief Check if a scope is alreasy already defined
+     * 
+     * @param table Multi index table
+     * @return true 
+     * @return false 
+     */
+    static inline bool hasScope(const pay2key_table& table){
+        return table.available_primary_key() != 0;
+    }
+
+
+    /**
      * @brief Reject a payment to the sender where the recipient is an account name.
      * If the sender is an account name it will get the payment directly. 
      * If the sender is a public key the payment will be marked as rejected by setting the time parameter to 0.
@@ -386,7 +423,7 @@ CONTRACT savactsavpay : public contract {
             name from(*nameValue);
 
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
             sendTokenHandleRAM(get_self(), to, itr->ramBy, from, itr->contract, itr->fund, "Pay back", freeRAM);
@@ -437,7 +474,7 @@ CONTRACT savactsavpay : public contract {
             from_str = from.to_string();
 
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back including the RAM
             sendWithRAM(get_self(), from, itr->contract, itr->fund, "Pay back", freeRAM);
@@ -488,7 +525,7 @@ CONTRACT savactsavpay : public contract {
             require_auth(Conversion::vectorToName(itr->from));
 
             // Burn the payment and handle RAM
-            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, itr->memo, freeRAM);
@@ -515,7 +552,7 @@ CONTRACT savactsavpay : public contract {
             require_auth(Conversion::vectorToName(itr->from));
 
             // Burn the payment and handle RAM
-            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient.
             _pay2key.modify(itr, get_self(), [&](auto& p) {
@@ -557,7 +594,7 @@ CONTRACT savactsavpay : public contract {
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
         
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment and handle RAM
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, "Burned", freeRAM);
@@ -585,7 +622,7 @@ CONTRACT savactsavpay : public contract {
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient
             _pay2key.modify(itr, get_self(), [&](auto& p) {
@@ -623,7 +660,7 @@ CONTRACT savactsavpay : public contract {
             require_auth(Conversion::vectorToName(itr->from));
 
             // Burn the payment and handle RAM
-            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, nirvana, itr->contract, itr->fund, "Burned", freeRAM);
@@ -650,7 +687,7 @@ CONTRACT savactsavpay : public contract {
             require_auth(Conversion::vectorToName(itr->from));
 
             // Burn the payment and handle RAM
-            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment including the RAM
             sendWithRAM(get_self(), nirvana, itr->contract, itr->fund, "Burned", freeRAM);
@@ -691,7 +728,7 @@ CONTRACT savactsavpay : public contract {
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
         
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment and handle RAM
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, nirvana, itr->contract, itr->fund, "Burned", freeRAM);
@@ -719,7 +756,7 @@ CONTRACT savactsavpay : public contract {
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
             // Get amount of RAM which will be free 
-            auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol);
+            auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment including the RAM
             sendWithRAM(get_self(), nirvana, itr->contract, itr->fund, "Burned", freeRAM);
@@ -757,7 +794,7 @@ CONTRACT savactsavpay : public contract {
                 name from(*nameValue);
 
                 // Get amount of RAM which will be free 
-                int32_t freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol);
+                int32_t freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
                 // Send the payment to the sender and handle RAM
                 sendTokenHandleRAM(get_self(), to_name, itr->ramBy, from, itr->contract, itr->fund, itr->memo, freeRAM);
@@ -766,7 +803,7 @@ CONTRACT savactsavpay : public contract {
                 check(eosio::current_time_point().sec_since_epoch() > itr->time, "The time limit has not expired, yet.");
                 
                 // Get amount of RAM which will be free 
-                int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol);
+                int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
                 
                 // Send the payment to the origin recipient and handle RAM
                 sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, itr->memo, freeRAM);
@@ -789,7 +826,7 @@ CONTRACT savactsavpay : public contract {
             name from(*nameValue);
 
             // Get amount of RAM which will be free 
-            int32_t freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol);
+            int32_t freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Send the payment to the sender including the RAM
             sendWithRAM(get_self(), from, itr->contract, itr->fund, "Rejected", freeRAM);
@@ -830,7 +867,7 @@ CONTRACT savactsavpay : public contract {
             assert_recover_key(sha256(&checkStr[0], checkStr.size()), sig, Conversion::GetPubKeyFromVector(itr->from));
 
             // Get amount of RAM which will be free 
-            int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol);
+            int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
             
             // Send the payment to the recipient and handle RAM
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, recipient, itr->contract, itr->fund, itr->memo, freeRAM);
@@ -866,7 +903,7 @@ CONTRACT savactsavpay : public contract {
             assert_recover_key(sha256(&checkStr[0], checkStr.size()), sig, sign_pub_key);
 
             // Get amount of RAM which will be free 
-            int32_t freeRAM = getRamForPayment(get_self(), itr->from.size() == 8, false, itr->contract, itr->fund.symbol);
+            int32_t freeRAM = getRamForPayment(get_self(), itr->from.size() == 8, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Send payment to recipient including the RAM
             sendWithRAM(get_self(), recipient, itr->contract, itr->fund, itr->memo, freeRAM);
