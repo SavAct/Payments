@@ -141,7 +141,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         pay2name_table _pay2name(get_self(), to_name.value);
         ram_table _ram(get_self(), to_scope);
 
-        // Add the extra RAM for the first entry // This will not be withdrawal afterwarts
+        // Add the extra RAM for the first entry
         if(!hasScope(_pay2name)){
             neededRAM += ram_scope;
         }
@@ -205,6 +205,39 @@ void savactsavpay::sendTokenHandleRAM(const name& self, const name& to, const na
 
         // Add RAM back to table
         freeRamUsage(self, ramBy, to, freeRAM);
+    }
+}
+
+void savactsavpay::handleScopeRam(const name& self, const name& to){
+    // Find the last RAM offerer and send him this RAM amount
+    ram_table _ram(self, to.value);
+    for(auto itr = _ram.begin(); itr != _ram.end(); ++itr){
+        if(itr->amount - itr->free == ram_scope){
+            _ram.modify(itr, self, [&](auto& p) {
+                p.free += ram_scope;
+            });
+            return;
+        }
+    }
+    // Otherwise sell and send it to nirvana
+    sendRamAndSysFundDirect(self, ram_scope, nirvana, asset(0, System_Symbol), std::string("Rest of RAM"));
+}
+
+void savactsavpay::handleScopeRam(const name& self){
+    sendRamAndSysFundDirect(self, ram_scope, nirvana, asset(0, System_Symbol), std::string("Rest of RAM"));
+}
+
+void savactsavpay::eraseItr(const name& self, pay2name_table& table, pay2name_table::const_iterator& itr, const name& to){
+    table.erase(itr);
+    if(!hasScope(table)){
+        handleScopeRam(self, to);
+    }
+}
+
+void savactsavpay::eraseItr(const name& self, pay2key_table& table, pay2key_table::const_iterator& itr){
+    table.erase(itr);
+    if(!hasScope(table)){
+        handleScopeRam(self);
     }
 }
 

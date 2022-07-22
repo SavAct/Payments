@@ -378,25 +378,45 @@ CONTRACT savactsavpay : public contract {
     static std::size_t getStringStorageSize(const string& s);
 
     /**
-     * @brief Check if a scope is alreasy already defined
+     * @brief Check if a scope is already defined
      * 
      * @param table Multi index table
      * @return true 
      * @return false 
      */
     static bool hasScope(const pay2name_table& table){
-        return table.available_primary_key() != 0;
+        return table.begin() != table.end();
     }
-
     /**
-     * @brief Check if a scope is alreasy already defined
+     * @brief Check if a scope is already defined
      * 
      * @param table Multi index table
      * @return true 
      * @return false 
      */
     static inline bool hasScope(const pay2key_table& table){
-        return table.available_primary_key() != 0;
+        return table.begin() != table.end();
+    }
+
+    /**
+     * @brief Check if there is only one entry in this table
+     * 
+     * @param table Multi index table
+     * @return true 
+     * @return false 
+     */
+    static inline bool onlyOneEntry(const pay2name_table& table){
+        return table.begin() == --table.end();
+    }
+    /**
+     * @brief Check if there is only one entry in this table
+     * 
+     * @param table Multi index table
+     * @return true 
+     * @return false 
+     */
+    static inline bool onlyOneEntry(const pay2key_table& table){
+        return table.begin() == --table.end();
     }
 
 
@@ -429,11 +449,11 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to, itr->ramBy, from, itr->contract, itr->fund, "Pay back", freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);        
+            eraseItr(get_self(), _pay2name, itr, to);
         } else {
             check(itr->time != 0, "The payment has already been rejected.");
 
-            // Set the payment open to pay back.
+            // Set the payment open to pay back
             _pay2name.modify(itr, get_self(), [&](auto& p) {
                 p.time = 0;
             });
@@ -480,7 +500,7 @@ CONTRACT savactsavpay : public contract {
             sendWithRAM(get_self(), from, itr->contract, itr->fund, "Pay back", freeRAM);
 
             // Delete entry
-            _pay2key.erase(itr);
+            eraseItr(get_self(), _pay2key, itr);
         } else {
             check(itr->time != 0, "The payment has already been rejected.");
 
@@ -531,7 +551,7 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, itr->memo, freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Recipient is a public key
             public_key to_key = Conversion::String_to_public_key(to);      
@@ -600,7 +620,7 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, "Burned", freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Recipient is a public key
             public_key to_key = Conversion::String_to_public_key(to);
@@ -666,7 +686,7 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, nirvana, itr->contract, itr->fund, "Burned", freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Recipient is a public key
             public_key to_key = Conversion::String_to_public_key(to);      
@@ -693,7 +713,7 @@ CONTRACT savactsavpay : public contract {
             sendWithRAM(get_self(), nirvana, itr->contract, itr->fund, "Burned", freeRAM);
 
             // Delete entry
-            _pay2key.erase(itr);
+            eraseItr(get_self(), _pay2key, itr);
         }
     }
 
@@ -734,7 +754,7 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, nirvana, itr->contract, itr->fund, "Burned", freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Recipient is a public key
             public_key to_key = Conversion::String_to_public_key(to);
@@ -762,7 +782,7 @@ CONTRACT savactsavpay : public contract {
             sendWithRAM(get_self(), nirvana, itr->contract, itr->fund, "Burned", freeRAM);
 
             // Delete entry
-            _pay2key.erase(itr);
+            eraseItr(get_self(), _pay2key, itr);
         }
 
         // Check the signature with the sender of the payment
@@ -809,7 +829,7 @@ CONTRACT savactsavpay : public contract {
                 sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, itr->memo, freeRAM);
             }
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Find entry
             uint64_t scope;
@@ -832,7 +852,7 @@ CONTRACT savactsavpay : public contract {
             sendWithRAM(get_self(), from, itr->contract, itr->fund, "Rejected", freeRAM);
 
             // Delete entry
-            _pay2key.erase(itr);
+            eraseItr(get_self(), _pay2key, itr);
         }
     }
 
@@ -873,7 +893,7 @@ CONTRACT savactsavpay : public contract {
             sendTokenHandleRAM(get_self(), to_name, itr->ramBy, recipient, itr->contract, itr->fund, itr->memo, freeRAM);
 
             // Delete entry
-            _pay2name.erase(itr);
+            eraseItr(get_self(), _pay2name, itr, to_name);
         } else {
             // Recipient is a public key
             // Pay off the origin recipient of the payment if the time limit is over, but pay off the sender if the transaction is marked as rejected.
@@ -909,7 +929,7 @@ CONTRACT savactsavpay : public contract {
             sendWithRAM(get_self(), recipient, itr->contract, itr->fund, itr->memo, freeRAM);
 
             // Delete entry
-            _pay2key.erase(itr);
+            eraseItr(get_self(), _pay2key, itr);
         }
     }
 
@@ -957,6 +977,38 @@ CONTRACT savactsavpay : public contract {
             EosioHandler::transfer(self, recipient, system_token_fund, memo);
         }
     }
+
+    /**
+     * @brief Handle the RAM after deleting the last entry of a scope by sending it back to RAM table otherwise to nirvana 
+     * 
+     * @param self This contract
+     * @param to Origin recipient of the payment
+     */
+    static void handleScopeRam(const name& self, const name& to);
+    /**
+     * @brief Send the RAM to nirvana after deleting the last entry of a scope 
+     * 
+     * @param self This contract
+     */
+    static void handleScopeRam(const name& self);
+
+    /**
+     * @brief Check if the table is empty and handle the remaining RAM
+     * 
+     * @param self This contract
+     * @param table Pay2name table with selected scope
+     * @param itr Selected iterator
+     * @param to Origin recipient of the payment
+     */
+    static inline void eraseItr(const name& self, pay2name_table& table, pay2name_table::const_iterator& itr, const name& to);
+    /**
+     * @brief Check if the table is empty and handle the remaining RAM
+     * 
+     * @param self This contract
+     * @param table Pay2key table with selected scope
+     * @param itr Selected iterator
+     */
+    static inline void eraseItr(const name& self, pay2key_table& table, pay2key_table::const_iterator& itr);
 
     /**
      * @brief Payoff all system tokens to an public key by creating an account for the recipient.
