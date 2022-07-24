@@ -149,8 +149,15 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         // Search for a free RAM payer for this recipient
         auto itr = getFreeRAMPayer(neededRAM, time, currentTime, _ram);
 
+        // Get new index
+        uint64_t index = nextNameIndex(get_self(), to_name);
         name ram_payer;
         if(itr == _ram.end()) {
+            // The first entry on data table needs RAM which will never be withdrawel
+            if(index == 0){
+                neededRAM += ram_data_entry;
+            }
+
             // RAM will be payed by the funds
             ram_payer = get_self();
 
@@ -159,6 +166,15 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
             EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
             
         } else {
+            // The first entry on data table needs RAM which will never be withdrawel
+            if(index == 0){
+                auto itr_never_back = getFreeRAMPayer(ram_data_entry, currentTime, currentTime, _ram);
+                _ram.modify(itr_never_back, get_self(), [&](auto& p) {
+                    p.amount -= ram_data_entry;
+                    p.free -= ram_data_entry;
+                });
+            }
+            
             // Set the recipient as RAM payer by mentioning the RAM offerer
             ram_payer = itr->from;
 
@@ -166,11 +182,12 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
             _ram.modify(itr, get_self(), [&](auto& p) {
                 p.free -= neededRAM;
             });
+
             // neededRAM = 0; // Not necessary 
         }
 
         // Add payment to table
-        addpayment(_pay2name, fromVec, to_name, fund, token_contract, memo, time, ram_payer);
+        addpayment(_pay2name, index, fromVec, to_name, fund, token_contract, memo, time, ram_payer);
     } else {
 
         // Recipient is a key
@@ -181,9 +198,17 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to_key, to_scope);
         pay2key_table _pay2key(get_self(), to_scope);
 
-        // Add the extra RAM for the first entry // This will not be withdrawal afterwarts
+        // Add the extra RAM for the first entry
         if(!hasScope(_pay2key)){
             neededRAM += ram_scope;
+        }
+
+        // Get new index
+        uint64_t index = nextKeyIndex(get_self(), to_scope);
+
+        // The first entry on data table needs RAM which will never be withdrawel
+        if(index == 0){
+            neededRAM += ram_data_entry;
         }
 
         // Buy needed RAM and reduce the fund amount accordingly
@@ -191,7 +216,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
 
         // Add payment to table
-        addpayment(_pay2key, fromVec, to_vec, fund, token_contract, memo, time, get_self());
+        addpayment(_pay2key, index, fromVec, to_vec, fund, token_contract, memo, time, get_self());
     }
 }
 
@@ -322,12 +347,12 @@ bool savactsavpay::isTokenAccepted(const name& self, const name& token_contract,
     return false;
 }
 
-void savactsavpay::addpayment(pay2name_table& table, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
+void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
     check(memo.size() < 256, "Memo is too long.");
 
     // Create a new entry
     table.emplace(get_self(), [&](auto& p) {
-        p.id = getIndividualPrimaryKey(table, from);
+        p.id = index;
         p.from = from;        // from = std::vector<char>(from_key.begin(), &from_key[PubKeyWithoutPrimarySize]);		
         p.fund = fund;
         p.contract = token_contract;
@@ -337,12 +362,12 @@ void savactsavpay::addpayment(pay2name_table& table, const vector<char>& from, c
     });
 }
 
-void savactsavpay::addpayment(pay2key_table& table, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
+void savactsavpay::addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer){
     check(memo.size() < 256, "Memo is too long.");
 
     // Create a new entry
     table.emplace(get_self(), [&](auto& p) {
-        p.id = getIndividualPrimaryKey(table, from);
+        p.id = index;
         p.to = to_vec;
         p.from = from;        // from = std::vector<char>(from_key.begin(), &from_key[PubKeyWithoutPrimarySize]);		
         p.fund = fund;
@@ -481,4 +506,39 @@ std::size_t savactsavpay::getStringStorageSize(const string& s){
         return len + 4;
     }
     return len + 5;
+}
+
+uint64_t savactsavpay::nextNameIndex(const name self, const name to_scope_name){
+    data_table _data_table(self, name("name").value);
+    auto itr = _data_table.find(to_scope_name.value);
+    if(itr == _data_table.end()){
+        _data_table.emplace(self, [&](auto& p) {
+            p.scopeId = to_scope_name.value;
+            p.nextId = 1; 
+        });
+        return 0;
+    } else {
+        uint64_t index(itr->nextId);
+        _data_table.modify(itr, self, [&](auto& p) {
+            p.nextId++;
+        });
+        return index;
+    }
+}
+uint64_t savactsavpay::nextKeyIndex(const name self, const uint64_t to_scope_key){
+    data_table _data_table(self, name("key").value);
+    auto itr = _data_table.find(to_scope_key);
+    if(itr == _data_table.end()){
+        _data_table.emplace(self, [&](auto& p) {
+            p.scopeId = to_scope_key;
+            p.nextId = 1; 
+        });
+        return 0;
+    } else {
+        uint64_t index(itr->nextId);
+        _data_table.modify(itr, self, [&](auto& p) {
+            p.nextId++;
+        });
+        return index;
+    }
 }

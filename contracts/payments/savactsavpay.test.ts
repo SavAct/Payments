@@ -141,7 +141,7 @@ describe('SavPay', () => {
       it('should succeed with correct auth 2', async () => {
         await ramTrace(async () => {
           return await sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `@${user2.name}!${inOneDayBs58}`, { from: user1 })
-        })
+        }, false) // First use of scope "name" which will be paid by the contract 
       })
       it('should update pay2name table 3', async () => {
         let {
@@ -150,7 +150,7 @@ describe('SavPay', () => {
         chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
         chai.expect(item.from).equal(nameToFromHex(user1.name), 'Wrong sender')
         chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
-        // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+        chai.expect(String(item.id)).equal(String(0), 'Wrong id')
         chai.expect(item.memo).equal('', 'There should no memo be defined')
         chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
         chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
@@ -217,11 +217,11 @@ describe('SavPay', () => {
           rows: [item1, item2, item3],
         } = await contract.pay2nameTable({ scope: user3.name })
 
-        const testPay2NameTable = (item: SavactsavpayPay2name) => {
+        const testPay2NameTable = (item: SavactsavpayPay2name, id: number) => {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
           chai.expect(item.from).equal(Key1Hex, 'Wrong sender')
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
-          // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+          chai.expect(String(item.id)).equal(String(id), 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
           if (item.memo) {
             chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
           } else {
@@ -230,9 +230,9 @@ describe('SavPay', () => {
           chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
           chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
         }
-        testPay2NameTable(item1)
-        testPay2NameTable(item2)
-        testPay2NameTable(item3)
+        testPay2NameTable(item1, 0)
+        testPay2NameTable(item2, 1)
+        testPay2NameTable(item3, 2)
       })
       it('should fail without time value 9', async () => {
         await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `${user3.publicKey}@${user3.name}`, { from: user1 }), 'Missing time limit.')
@@ -253,7 +253,7 @@ describe('SavPay', () => {
       it('should succeed with legacy key 3', async () => {
         await ramTrace(() => {
           return sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `@${pubKey1K1.toLegacyString()}!${inOneDayBs58}`, { from: user1 })
-        })
+        }, false) // First use of scope "key" which will be paid by the contract
       })
       it('should fail with typo in K1 key 4', async () => {
         const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
@@ -278,11 +278,11 @@ describe('SavPay', () => {
           rows: [item1, item2, item3],
         } = await contract.pay2keyTable({ scope: splitKey1K1.scope.toString() })
 
-        const testPay2KeyTable = (item: SavactsavpayPay2key) => {
+        const testPay2KeyTable = (item: SavactsavpayPay2key, id: number) => {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
           chai.expect(item.from).equal(nameToFromHex(user1.name), 'Wrong sender')
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
-          // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+          chai.expect(String(item.id)).equal(String(id), 'Wrong id')
           if (item.memo) {
             chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
           } else {
@@ -292,9 +292,9 @@ describe('SavPay', () => {
           chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
           chai.expect(item.to).equal(splitKey1K1.tableVec, 'Wrong recipient pub key')
         }
-        testPay2KeyTable(item1)
-        testPay2KeyTable(item2)
-        testPay2KeyTable(item3)
+        testPay2KeyTable(item1, 0)
+        testPay2KeyTable(item2, 1)
+        testPay2KeyTable(item3, 2)
       })
       it('should fail without time value 9', async () => {
         await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `@${user2.publicKey}`, { from: user1 }), 'Missing time limit.')
@@ -347,11 +347,11 @@ describe('SavPay', () => {
           rows: [item1, item2, item3],
         } = await contract.pay2keyTable({ scope: splitKey3K1.scope.toString() })
 
-        const testPay2KeyTable = (item: SavactsavpayPay2key) => {
+        const testPay2KeyTable = (item: SavactsavpayPay2key, id: number) => {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
           chai.expect(item.from).equal(Key1Hex, 'Wrong sender')
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
-          // chai.expect(String(item.id)).equal(, 'Wrong id')  // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
+          chai.expect(String(item.id)).equal(String(id), 'Wrong id')
           if (item.memo) {
             chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
           } else {
@@ -361,27 +361,37 @@ describe('SavPay', () => {
           chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
           chai.expect(item.to).equal(splitKey3K1.tableVec, 'Wrong recipient pub key')
         }
-        testPay2KeyTable(item1)
-        testPay2KeyTable(item2)
-        testPay2KeyTable(item3)
+        testPay2KeyTable(item1, 0)
+        testPay2KeyTable(item2, 1)
+        testPay2KeyTable(item3, 2)
       })
       it('should fail without time value 10', async () => {
         await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${user2.publicKey}`, { from: user1 }), 'Missing time limit.')
       })
     })
   })
-  context('F/? deposited RAM', async () => {
+  context('F/? reject payment', async () => {
+    //TODO:
+  })
+  context('G/? finish payment', async () => {
+    //TODO:
+  })
+  context('H/? invalidate payment', async () => {
+    //TODO:
+  })
+  context('I/? deposited RAM', async () => {
     //TODO:
   })
   // TODO: ...
 })
 
-async function ramTrace(action: () => Promise<any>) {
+async function ramTrace(action: () => Promise<any>, checkless = true) {
   const ram_before = (await EOSManager.api.rpc.get_account(contract.account.name)).ram_usage
   const r = await action()
   const ram_after = (await EOSManager.api.rpc.get_account(contract.account.name)).ram_usage
   const ram_delta = ram_after - ram_before
   let ramlog = `RAM delta ${ram_delta}`
+  
   // console.log('action_traces', r.processed.action_traces)
   // console.log('account_ram_deltas', r.processed.action_traces[0].account_ram_deltas)
   // let sumDeltaRAM = 0
@@ -390,7 +400,8 @@ async function ramTrace(action: () => Promise<any>) {
   // }
   // ramlog += ` Sum ${sumDeltaRAM}`
   // console.log('inline_traces', r.processed.action_traces[0].inline_traces)
-  let sumBought = 0;
+
+  let sumBought = 0
   for (let t of r.processed.action_traces[0].inline_traces) {
     // console.log('inline_trace', t.act)
     if ('act' in t && 'name' in t.act && t.act.name == 'buyrambytes') {
@@ -400,8 +411,11 @@ async function ramTrace(action: () => Promise<any>) {
       ramlog += ` Bought ${t.act.data.bytes}`
     }
   }
+
   console.log(ramlog)
-  chai.expect(ram_delta).lessThanOrEqual(sumBought)
+  if(checkless){
+    chai.expect(ram_delta).lessThanOrEqual(sumBought, "More RAM consumed than expected")
+  }
 }
 
 function numberTouInt32(num: number) {

@@ -23,6 +23,7 @@
 
 // TODO: Should be messured
 #define ram_ram_entry 240
+#define ram_data_entry 128
 
 #define expirationTime 86400 // 24h
 
@@ -88,6 +89,18 @@ CONTRACT savactsavpay : public contract {
         auto primary_key() const { return id; }
     };
     typedef multi_index<name("pay2key"), pay2key> pay2key_table;
+
+    /**
+     * @brief Table to store the highest id
+     * scope = "name" for pay2name table
+     * scope = "key" for pay2key table
+     */
+    TABLE data {
+        uint64_t scopeId;       // 8 bytes
+        uint64_t nextId;        // 8 bytes
+        auto primary_key() const { return scopeId; }
+    };
+    typedef multi_index<name("data"), data> data_table;
 
     /**
      * @brief RAM storage for account recipients. Accounts can offer RAM for free under special conditions.
@@ -318,7 +331,7 @@ CONTRACT savactsavpay : public contract {
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2name_table& table, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
     /**
      * @brief Add a payment to pay2key-table.
      * 
@@ -331,7 +344,7 @@ CONTRACT savactsavpay : public contract {
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2key_table& table, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
 
     /**
      * @brief Get the sender (user) as char vector and check if the sender is valid
@@ -419,6 +432,22 @@ CONTRACT savactsavpay : public contract {
         return table.begin() == --table.end();
     }
 
+    /**
+     * @brief Get the current available primary key for pay2name table and set the next one
+     * 
+     * @param self This contract
+     * @param to_scope_name Scope of the recipients table
+     * @return uint64_t Current free primary key 
+     */
+    static uint64_t nextNameIndex(const name self, const name to_scope_name);
+    /**
+     * @brief Get the current available primary key for pay2key table and set the next one
+     * 
+     * @param self This contract
+     * @param to_scope_key Scope of the recipients table
+     * @return uint64_t Current free primary key 
+     */
+    static uint64_t nextKeyIndex(const name self, const uint64_t to_scope_key);
 
     /**
      * @brief Reject a payment to the sender where the recipient is an account name.
@@ -1184,40 +1213,6 @@ CONTRACT savactsavpay : public contract {
      * @param fund Available funds to buy the resources
      */
     void buyAccount(const name& self, public_key& pubkey, name account, asset& fund);
-
-    /**
-     * @brief Get an individual primary key which is every time different
-     * 
-     * @param table Pay2name table
-     * @param from Vector of sender which could be a name or a public key
-     * @return Primary key 
-     */
-    uint64_t getIndividualPrimaryKey(const pay2name_table& table, const vector<char>& from){
-        // Alternative 1: A random number in a contract https://github.com/EOSBlox/random
-        // Alternative 2: An up counting number which will never fall back, even when all table entries are deleted (this is not the case with available_primary_key() )
-        uint64_t currentTime = (uint64_t) eosio::current_time_point().sec_since_epoch();
-        uint64_t id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix());
-        while (table.find(id) != table.end()) {
-            id--;
-        }
-        return id;
-    }
-
-    /**
-     * @brief Get an individual primary key which is every time different
-     * 
-     * @param table Pay2key table
-     * @param from Vector of sender which could be a name or a public key
-     * @return Primary key 
-     */
-    uint64_t getIndividualPrimaryKey(const pay2key_table& table, const vector<char>& from){
-        uint64_t currentTime = (uint64_t) eosio::current_time_point().sec_since_epoch();
-        uint64_t id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix());
-        while (table.find(id) != table.end()) {
-            id--;
-        }
-        return id;
-    }
 
     [[eosio::on_notify("eosio.token::transfer")]]
     void deposit(const name& from, const name& to, const asset& fund, const string& memo){

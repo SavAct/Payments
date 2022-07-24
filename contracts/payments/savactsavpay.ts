@@ -15,6 +15,11 @@ export interface SavactsavpayClearallname {
 	scope: string|number;
 }
 
+export interface SavactsavpayData {
+	scopeId: number|string;
+	nextId: number|string;
+}
+
 export interface SavactsavpayFinalize {
 	to: string;
 	id: number|string;
@@ -216,6 +221,7 @@ export interface Savactsavpay extends Contract {
 	testsetram_object_params(params: {from: string|number, to: string|number, fund: string, maxTime: number, relative: boolean}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	
 	// Tables
+	dataTable(options?: GetTableRowsOptions): Promise<TableRowsResult<SavactsavpayData>>;
 	pay2keyTable(options?: GetTableRowsOptions): Promise<TableRowsResult<SavactsavpayPay2key>>;
 	pay2nameTable(options?: GetTableRowsOptions): Promise<TableRowsResult<SavactsavpayPay2name>>;
 	ramTable(options?: GetTableRowsOptions): Promise<TableRowsResult<SavactsavpayRam>>;
