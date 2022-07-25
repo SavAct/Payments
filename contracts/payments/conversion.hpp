@@ -314,7 +314,7 @@ public:
     };
 
     /** The signs to seperate the memo. The sequence of the chars are importend. */
-	inline static const string parasigns = "@.!;:#~+&";
+	inline static const string parasigns = "@/!;:#~+&";
 
 	/** Set a parameter from string
 	*	@param parameter	Parameter as string

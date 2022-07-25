@@ -21,8 +21,7 @@
 #define ram_scope 112                       // Consumed RAM for a new scope with 8 byte scope value
 #define ram_system_token_open_entry 240     // Consumed RAM to receive system tokens for the first time
 
-// TODO: Should be messured
-#define ram_ram_entry 240
+#define ram_ram_entry 141                   // 112 + 29 // TODO: Should be messured
 #define ram_data_entry 128
 
 #define expirationTime 86400 // 24h
@@ -107,11 +106,11 @@ CONTRACT savactsavpay : public contract {
      * The scope is defined by the recipient number.
      */
     TABLE ram {
-        name from;
-        uint64_t amount;
-        uint64_t free;
-        uint32_t maxTime;
-        bool relative;
+        name from;              // 8 bytes
+        uint64_t amount;        // 8 bytes
+        uint64_t free;          // 8 bytes
+        uint32_t maxTime;       // 4 bytes
+        bool relative;          // 1 bytes
         auto primary_key() const { return from.value; }
     };
     typedef multi_index<name("ram"), ram> ram_table;
@@ -222,7 +221,7 @@ CONTRACT savactsavpay : public contract {
      * @param tokenSymbol Symbol of the token
      * @param openBytes Bytes of RAM to open an entry for an account name. For the eosio.token contract of 2022 it is 240 Byte 
      */
-    ACTION settoken(name tokenContract, symbol tokenSymbol, uint32_t openBytes);
+    ACTION settoken(const name& tokenContract, const symbol& tokenSymbol, const uint32_t openBytes);
 
     /**
      * @brief Remove a token from accepted token list.
@@ -230,7 +229,7 @@ CONTRACT savactsavpay : public contract {
      * @param tokenContract 
      * @param tokenSymbol 
      */
-    ACTION removetoken(name tokenContract, symbol tokenSymbol);
+    ACTION removetoken(const name& tokenContract, const symbol& tokenSymbol);
 
     /**
      * @brief Buy ram for a given max time limit and a maximum of memo size. Each payer "from" can only set one max time definition per user "to".
@@ -270,7 +269,7 @@ CONTRACT savactsavpay : public contract {
      * @param sym Symbol of the token
      * @param memo Memo entry
      */
-    static int32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo);
+    static uint32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo);
 
     /** 
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -282,7 +281,7 @@ CONTRACT savactsavpay : public contract {
      * @param memo Memo
      * @param time Time limit 
      */
-    void pay(const name& from, const string& to, asset fund, const name token_contract, const string& memo, const uint32_t time);
+    void pay(const name& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
 
     /** 
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -294,7 +293,7 @@ CONTRACT savactsavpay : public contract {
      * @param memo Memo
      * @param time Time limit 
      */
-    void pay(const string& from, const string& to, asset fund, const name token_contract, const string& memo, const uint32_t time);
+    void pay(const string& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
 
     /** 
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -306,7 +305,7 @@ CONTRACT savactsavpay : public contract {
      * @param memo Memo
      * @param time Time limit 
      */
-    void pay(const vector<char>& fromVec, const string& to, asset fund, const name token_contract, const string& memo, const uint32_t time);
+    void pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
 
     /**
      * @brief Find a RAM payer. RAM cannot be sum up by several RAM payers.
@@ -331,7 +330,7 @@ CONTRACT savactsavpay : public contract {
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name to, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer);
     /**
      * @brief Add a payment to pay2key-table.
      * 
@@ -344,7 +343,7 @@ CONTRACT savactsavpay : public contract {
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name token_contract, const string& memo, const uint32_t time, const name ram_payer);
+    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer);
 
     /**
      * @brief Get the sender (user) as char vector and check if the sender is valid
@@ -380,7 +379,7 @@ CONTRACT savactsavpay : public contract {
      * @param rambytes Obtains the amount of bytes to open an entry for a new user 
      * @returns true if the token is allowed
      */
-    static bool isTokenAccepted(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t rambytes);
+    static bool isTokenAccepted(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t& rambytes);
 
     /**
      * @brief Get the eosio multi index storage size of a string (only up to 34,359,738,367 characters)
@@ -439,7 +438,7 @@ CONTRACT savactsavpay : public contract {
      * @param to_scope_name Scope of the recipients table
      * @return uint64_t Current free primary key 
      */
-    static uint64_t nextNameIndex(const name self, const name to_scope_name);
+    static uint64_t nextNameIndex(const name& self, const name& to_scope_name);
     /**
      * @brief Get the current available primary key for pay2key table and set the next one
      * 
@@ -447,7 +446,7 @@ CONTRACT savactsavpay : public contract {
      * @param to_scope_key Scope of the recipients table
      * @return uint64_t Current free primary key 
      */
-    static uint64_t nextKeyIndex(const name self, const uint64_t to_scope_key);
+    static uint64_t nextKeyIndex(const name& self, const uint64_t to_scope_key);
 
     /**
      * @brief Reject a payment to the sender where the recipient is an account name.
@@ -457,7 +456,7 @@ CONTRACT savactsavpay : public contract {
      * @param to Origin recipient
      * @param id Id of the payment
      */
-    ACTION reject(const name to, const uint64_t id){
+    ACTION reject(const name& to, const uint64_t id){
         require_auth(to);
         
         // Find entry
@@ -826,7 +825,7 @@ CONTRACT savactsavpay : public contract {
      * @param to Name or public key of the origin recipient as string
      * @param id Id of the payment
      */
-    ACTION payoff(const string& to, uint64_t id){
+    ACTION payoff(const string& to, const uint64_t id){
         // Note: Everyone can execute this transaction
         if(to.size() == 8){
             name to_name(to);
@@ -894,7 +893,7 @@ CONTRACT savactsavpay : public contract {
      * @param sigtime Time stamp of the signature
      * @param sig Signature of "{Chain id} {Name of this contract} payoff {name or public key of the origin recipient} {name of the recipient} {id} {sigtime}"
      */
-    ACTION payoffsig(const string& to, uint64_t id, name recipient, const uint32_t sigtime, const signature& sig){
+    ACTION payoffsig(const string& to, const uint64_t id, const name& recipient, const uint32_t sigtime, const signature& sig){
         check(!is_account(recipient), "Account does not exist.");
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
 
@@ -974,7 +973,7 @@ CONTRACT savactsavpay : public contract {
      * @param memo Memo for the transaction to the recipient
      * @param freeRAM Amount of RAM which will be available after erasing the payment entry
      */
-    static void sendTokenHandleRAM(const name& self, const name& to, const name& ramBy, const name& recipient, const name& token_contract, const asset& fund, const string& memo, int32_t freeRAM);
+    static void sendTokenHandleRAM(const name& self, const name& to, const name& ramBy, const name& recipient, const name& token_contract, const asset& fund, const string& memo, const int32_t freeRAM);
 
     /**
      * @brief Send system or/and contract token to the recipient. Open contract token entry if there is no one yet. Rest of free RAM will be sold and send as system token to the recipient.
@@ -997,7 +996,7 @@ CONTRACT savactsavpay : public contract {
      * @param system_token_fund System token for the recipient without considering the RAM
      * @param memo Memo for the transaction to the recipient
      */
-    static void sendRamAndSysFundDirect(const name& self, const uint32_t ramBytes, const name recipient, asset system_token_fund, const string& memo){
+    static void sendRamAndSysFundDirect(const name& self, const uint32_t ramBytes, const name& recipient, asset system_token_fund, const string& memo){
         if(ramBytes > 0){
             system_token_fund.amount += EosioHandler::calcRamPrice(ramBytes);
             EosioHandler::sellram(self, ramBytes);
@@ -1048,7 +1047,7 @@ CONTRACT savactsavpay : public contract {
      * @param sigtime Time stamp of the signature
      * @param sig Signature of "{Chain id} {Name of this contract} payoff all {public key in hex format of the new account} {name of the new account} {sigtime}"
      */
-    ACTION payoffnewacc(public_key user_pub_key, name user_name, public_key sign_pub_key, const uint32_t sigtime, const signature& sig){
+    ACTION payoffnewacc(const public_key& user_pub_key, const name& user_name, const public_key& sign_pub_key, const uint32_t sigtime, const signature& sig){
         check(!is_account(user_name), "Account already exists.");
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
         
@@ -1088,7 +1087,7 @@ CONTRACT savactsavpay : public contract {
      * @param fund Amount of system token which will be added for selling the RAM amount or substracted for buying the RAM amount
      * @param bytes Positive amount of bytes to buy RAM, negative amount to sell RAM.
      */
-    static void buyOrSellRam(const name& self, asset& fund, int32_t bytes){
+    static void buyOrSellRam(const name& self, asset& fund, const int32_t bytes){
         if(bytes > 0){
             fund.amount += EosioHandler::calcSellRamPrice(bytes);
             EosioHandler::sellram(self, bytes);
@@ -1107,7 +1106,7 @@ CONTRACT savactsavpay : public contract {
      * @param token_symbol Symbol of the token
      * @param memo Memo on pay off
      */
-    ACTION payoffall(name to, name token_contract, symbol token_symbol, const string& memo){
+    ACTION payoffall(const name& to, const name& token_contract, const symbol& token_symbol, const string& memo){
         auto currentTime = eosio::current_time_point().sec_since_epoch();
         asset fund(0, token_symbol);
         int32_t freeRAM = getAndRemovesExpiredBalancesOfName(to, token_contract, fund, currentTime, get_self());
@@ -1125,7 +1124,7 @@ CONTRACT savactsavpay : public contract {
      * @param sigtime Time stamp of the signature
      * @param sig Signature of "{Chain id} {Name of this contract} payoff all {token contract name} {token symbol} {name of the recipient} {memo} {sigtime}"
      */
-    ACTION payoffsigall(name token_contract, symbol token_symbol, name recipient, const string& memo, public_key sign_pub_key, const uint32_t sigtime, const signature& sig){
+    ACTION payoffsigall(const name& token_contract, const symbol& token_symbol, const name& recipient, const string& memo, const public_key& sign_pub_key, const uint32_t sigtime, const signature& sig){
         check(is_account(recipient), "Account does not exist.");
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
         
@@ -1212,7 +1211,7 @@ CONTRACT savactsavpay : public contract {
      * @param account Name of the new account
      * @param fund Available funds to buy the resources
      */
-    void buyAccount(const name& self, public_key& pubkey, name account, asset& fund);
+    void buyAccount(const name& self, const public_key& pubkey, const name& account, asset& fund);
 
     [[eosio::on_notify("eosio.token::transfer")]]
     void deposit(const name& from, const name& to, const asset& fund, const string& memo){
@@ -1296,7 +1295,7 @@ CONTRACT savactsavpay : public contract {
 
 // Memo parameters:
 // from? @to !time ;memo? | :abstimmungen?
-// RAM@to !time | .relative_time
+// RAM@to !time | /relative_time
 // FIN@to_pub #id !sig_time ~sig
 // OFF@to #id !sig_time ~sig +recipient
 // ALL!sig_time ~sig +recipient #nuance
