@@ -139,9 +139,17 @@ describe('SavPay', () => {
         await assertMissingAuthority(sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `@${user2.name}.${inOneDayBs58}`, { from: user2 }))
       })
       it('should succeed with correct auth 2', async () => {
+        const [contractAsset, User1Asset, User2Asset]= await getBalances([contract.account, user1, user2], sys_token)
+
         await ramTrace(async () => {
           return await sys_token.contract.transfer(user1.name, contract.account.name, sendAssetString, `@${user2.name}!${inOneDayBs58}`, { from: user1 })
         }, false) // First use of scope "name" which will be paid by the contract 
+        
+        const [newContractAsset, newUser1Asset, newUser2Asset] = await getBalances([contract.account, user1, user2], sys_token)
+        const sendAmount = User1Asset.amount - newUser1Asset.amount
+        chai.expect(0).equal(User2Asset.amount - newUser2Asset.amount, "Other user balance changed")
+        chai.expect(sendAmount).equal(sendAsset.amount, "User does not send the right amount of tokens")
+        chai.expect(newContractAsset.amount - contractAsset.amount).equal(sendAsset.amount, "Contract does not receive the right amount of tokens")
       })
       it('should update pay2name table 3', async () => {
         let {
@@ -370,8 +378,43 @@ describe('SavPay', () => {
       })
     })
   })
-  context('F/? reject payment', async () => {
-    //TODO:
+  context('reject payment', async () => {
+    let contractAsset: Asset
+    let user1Asset: Asset
+    let user2Asset: Asset
+    let user3Asset: Asset
+    let storedAsset: Asset
+    before(async () => {
+      [contractAsset, user1Asset, user2Asset, user3Asset] = await getBalances([contract.account, user1, user2, user3], sys_token)
+      const {rows: [item]} = await contract.pay2nameTable({ scope: user2.name, lowerBound: 0, limit: 1 })
+      storedAsset = stringToAsset(item.fund)
+    })
+    context('F/4 name to name', async () => {
+      it('should fail with auth error by sender auth 1', async () => {
+        await assertMissingAuthority(contract.reject(user2.name, 0, { from: user1 }))
+      })
+      it('should fail with auth error by contract auth 2', async () => {
+        await assertMissingAuthority(contract.reject(user2.name, 0, { from: contract.account }))
+      })
+      it('should succeed 3', async () => {
+        await ramTrace(async () => {
+          return await contract.reject(user2.name, 0, { from: user2 })
+        })
+      })
+      it('should update tables 4', async () => {
+        await checkPayment2Name_NotExist(user1.name, 0)
+        const [newContractAsset, newUser1Asset, newUser2Asset] = await getBalances([contract.account, user1, user2], sys_token)
+        
+        chai.expect(storedAsset.amount).greaterThan(0, 'No asset in pay2name table entry')
+        const sendAmount = contractAsset.amount - newContractAsset.amount
+        chai.expect(sendAmount).greaterThanOrEqual(storedAsset.amount, 'Wrong asset amount withdrawel')
+        chai.expect(newUser1Asset.amount - user1Asset.amount).greaterThanOrEqual(sendAmount, 'User got wrong amount returned')
+        chai.expect(newUser2Asset.amount - newUser2Asset.amount).equal(0, 'Changed balance of wrong user')
+        user1Asset.amount = newUser1Asset.amount
+        contractAsset.amount = newContractAsset.amount
+      })
+    })
+    
   })
   context('G/? finish payment', async () => {
     //TODO:
@@ -384,6 +427,70 @@ describe('SavPay', () => {
   })
   // TODO: ...
 })
+
+async function getBalances(users: Array<Account>, token: Token) {
+  let balances: Array<Asset> = []
+  for(const user of users){    
+    balances.push(await getBalance(user, token))
+  }
+  return balances
+}
+
+async function getBalance(user: Account, token: Token) {
+  const r = await sys_token.contract.getTableRows('accounts', { 
+    scope: user.name
+  })
+  if('rows' in r && r.rows.length > 0){
+    return stringToAsset(r.rows[0].balance)
+  }
+  return new Asset(0, token.symbol)
+}
+
+async function existPay2NameEntry(scope: string, id: number){
+  const r = await contract.pay2nameTable({
+    scope,
+    lowerBound: id,
+    limit: 1
+  })
+  if('rows' in r.rows && r.rows.length == 1){
+    return true
+  } else {
+    return false
+  }
+}
+async function existPay2KeyEntry(scope: string, id: number){
+  const r = await contract.pay2keyTable({
+    scope,
+    lowerBound: id,
+    limit: 1
+  })
+  if('rows' in r.rows && r.rows.length == 1){
+    return true
+  } else {
+    return false
+  }
+}
+
+async function checkPayment2Name_Exist(scope: string, id: number){
+  if(!await existPay2NameEntry(user2.name, 0)){
+    throw `Entry ${id} of recipient name ${scope} does not exist`
+  }
+}
+async function checkPayment2Name_NotExist(scope: string, id: number){
+  if(await existPay2NameEntry(scope, 0)){
+    throw `Entry ${id} of recipient name ${scope} does exist`
+  }
+}
+async function checkPayment2Key_Exist(scope: string, id: number){
+  if(!await existPay2KeyEntry(user2.name, 0)){
+    throw `Entry ${id} of recipient scope key ${scope} does not exist`
+  }
+}
+async function checkPayment2Key_NotExist(scope: string, id: number){
+  if(await existPay2KeyEntry(scope, 0)){
+    throw `Entry ${id} of recipient scope key ${scope} does exist`
+  }
+}
 
 async function ramTrace(action: () => Promise<any>, checkless = true) {
   const ram_before = (await EOSManager.api.rpc.get_account(contract.account.name)).ram_usage
@@ -402,13 +509,21 @@ async function ramTrace(action: () => Promise<any>, checkless = true) {
   // console.log('inline_traces', r.processed.action_traces[0].inline_traces)
 
   let sumBought = 0
-  for (let t of r.processed.action_traces[0].inline_traces) {
-    // console.log('inline_trace', t.act)
-    if ('act' in t && 'name' in t.act && t.act.name == 'buyrambytes') {
-      chai.expect(t.act.data.payer).equal(contract.account.name, 'Wrong RAM payer')
-      chai.expect(t.act.data.receiver).equal(contract.account.name, 'Wrong RAM receiver')
-      sumBought += t.act.data.bytes
-      ramlog += ` Bought ${t.act.data.bytes}`
+  let sumSold = 0
+  if('action_traces' in r.processed && r.processed.action_traces.length > 0 && 'inline_traces' in r.processed.action_traces[0]){
+    for (let t of r.processed.action_traces[0].inline_traces) {
+      if ('act' in t && 'name' in t.act) {
+        if(t.act.name == 'buyrambytes'){
+          chai.expect(t.act.data.payer).equal(contract.account.name, 'Wrong RAM payer')
+          chai.expect(t.act.data.receiver).equal(contract.account.name, 'Wrong RAM receiver')
+          sumBought += t.act.data.bytes
+          ramlog += ` Bought ${t.act.data.bytes}`
+        } else if(t.act.name == 'sellram'){
+          chai.expect(t.act.data.account).equal(contract.account.name, 'Wrong RAM seller')
+          sumSold += t.act.data.bytes
+          ramlog += ` Sold ${t.act.data.bytes}`
+        }
+      }
     }
   }
 

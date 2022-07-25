@@ -161,7 +161,7 @@ public:
 	*	@param account		Account who sells the RAM
 	*	@param bytes		Amount of bytes which should be sold
 	*/
-	static void sellram(const name& account, const int32_t bytes);
+	static void sellram(const name& account, const int64_t bytes);
 
 private:
     // From eosio.system/src/exchange_state.cpp
@@ -250,7 +250,7 @@ void EosioHandler::buyram(const name& payer, const name& receiver, const asset& 
 	}.send();
 }
 
-void EosioHandler::sellram(const name& account, const int32_t bytes){
+void EosioHandler::sellram(const name& account, const int64_t bytes){
 	action {
 	  permission_level{account, "active"_n},
 	  eosio_system,
