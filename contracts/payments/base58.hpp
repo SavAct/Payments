@@ -9,6 +9,7 @@ private:
 
 	// All alphanumeric characters except for "0", "I", "O", and "l"
 	static constexpr char pszBase58[] = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+#pragma warning disable format // @formatter:off
 	static constexpr int8_t mapBase58[256] = {
 			-1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
 			-1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
@@ -27,17 +28,18 @@ private:
 			-1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
 			-1,-1,-1,-1,-1,-1,-1,-1, -1,-1,-1,-1,-1,-1,-1,-1,
 	};
+#pragma warning restore format // @formatter:on
 
 public:
-	static bool DecodeBase58(const char* psz, std::vector<unsigned char>& vch)
-	{
+	static bool DecodeBase58(const char* psz, std::vector<unsigned char>& vch) {
 		// Skip leading spaces.
 		while (*psz && isspace(*psz))
 			psz++;
 		// Skip and count leading '1's.
 		int zeroes = 0;
 		int length = 0;
-		while (*psz == '1') {
+		while (*psz == '1')
+		{
 			zeroes++;
 			psz++;
 		}
@@ -46,13 +48,15 @@ public:
 		std::vector<unsigned char> b256(size);
 		// Process the characters.
 		static_assert(sizeof(mapBase58) / sizeof(mapBase58[0]) == 256, "mapBase58.size() should be 256"); // guarantee not out of range
-		while (*psz && !isspace(*psz)) {
+		while (*psz && !isspace(*psz))
+		{
 			// Decode base58 character
 			int carry = mapBase58[(uint8_t)*psz];
-			if (carry == -1)  // Invalid b58 character
+			if (carry == -1) // Invalid b58 character
 				return false;
 			int i = 0;
-			for (std::vector<unsigned char>::reverse_iterator it = b256.rbegin(); (carry != 0 || i < length) && (it != b256.rend()); ++it, ++i) {
+			for (std::vector<unsigned char>::reverse_iterator it = b256.rbegin(); (carry != 0 || i < length) && (it != b256.rend()); ++it, ++i)
+			{
 				carry += 58 * (*it);
 				*it = carry % 256;
 				carry /= 256;
@@ -82,7 +86,7 @@ public:
 		return DecodeBase58(str.c_str(), vch);
 	}
 
-	template<class T>
+	template <class T>
 	static bool decode_base58(const string& str, T& value) {
 		vector<unsigned char> vch(sizeof(value), 0x00);
 		bool noErr = DecodeBase58(str.c_str(), vch);

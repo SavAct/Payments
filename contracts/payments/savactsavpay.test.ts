@@ -14,7 +14,7 @@ import { PublicKey } from 'eosjs/dist/PublicKey'
 import { PrivateKey } from 'eosjs/dist/PrivateKey'
 import { KeyType, publicKeyToString } from 'eosjs/dist/eosjs-numeric'
 import { Symbol, Asset, numberTouInt32, stringToAsset, splitPubKeyToScopeAndTableVec, nameToFromHex, hexWithTypeOfPubKey } from '../../helpers/conversions'
-import { getBalances, initToken, issueToken, Token, updateAuths } from '../../helpers/chainHandle'
+import { getBalances, initToken, issueToken, shouldFail, Token, updateAuths } from '../../helpers/chainHandle'
 import { Check } from '../../helpers/contractHandle'
 import base58 = require('bs58')
 
@@ -33,11 +33,13 @@ let check: Check
 
 const priKey1K1 = PrivateKey.fromString('5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3')
 const pubKey1K1 = priKey1K1.getPublicKey()
+const splitKey1K1 = splitPubKeyToScopeAndTableVec(pubKey1K1)
 const priKey1R1 = PrivateKey.fromString('PVT_R1_22GrF17GDTkkdLG9FnqPAUJ8LNaqSK7aKbKxyVy9gxX795E8mQ')
 const pubKey1R1 = priKey1R1.getPublicKey()
 console.log('Legacy K1', pubKey1K1.toLegacyString())
 console.log('K1', pubKey1K1.toString())
 console.log('R1', pubKey1R1.toString())
+const mainNetChainId = 'aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906'
 
 describe('SavPay', () => {
   before(async () => {
@@ -258,7 +260,6 @@ describe('SavPay', () => {
         await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${pubKey1R1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should update pay2name table 8', async () => {
-        const splitKey1K1 = splitPubKeyToScopeAndTableVec(pubKey1K1)
         let {
           rows: [item1, item2, item3],
         } = await contract.pay2keyTable({ scope: splitKey1K1.scope.toString() })
@@ -286,47 +287,47 @@ describe('SavPay', () => {
       })
     })
     context('E/10 from key to key', async () => {
-      let recipient3PubK1: PublicKey
+      let recipient2PubK1: PublicKey
       before(async () => {
         if (users[2].publicKey) {
-          recipient3PubK1 = PublicKey.fromString(users[2].publicKey)
+          recipient2PubK1 = PublicKey.fromString(users[2].publicKey)
         }
       })
       it('should fail with invalid key length 1', async () => {
-        const wrong_pubkeyLegacy = recipient3PubK1.toLegacyString().substring(0, 10) + 'aa' + recipient3PubK1.toLegacyString().substring(10)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient3PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Invalid length of public key.')
+        const wrong_pubkeyLegacy = recipient2PubK1.toLegacyString().substring(0, 10) + 'aa' + recipient2PubK1.toLegacyString().substring(10)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Invalid length of public key.')
       })
       it('should fail with typo in legacy key 2', async () => {
-        const wrong_pubkeyLegacy = recipient3PubK1.toLegacyString().substring(0, 10) + 'aaaaaa' + recipient3PubK1.toLegacyString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient3PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        const wrong_pubkeyLegacy = recipient2PubK1.toLegacyString().substring(0, 10) + 'aaaaaa' + recipient2PubK1.toLegacyString().substring(16)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with legacy key 3', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${recipient3PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] })
         })
       })
       it('should fail with typo in K1 key 4', async () => {
         const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${recipient3PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with K1 key 5', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient3PubK1.toString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] })
         })
       })
       it('should succeed with memo 6', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient3PubK1.toString()}!${inOneDayBs58};@new?key;format!`, { from: users[0] })
+          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};@new?key;format!`, { from: users[0] })
         })
       })
       it('should fail with R1 sender key 7', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient3PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should fail with R1 sender and receiver key 8', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient3PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should update pay2name table 9', async () => {
-        const splitKey3K1 = splitPubKeyToScopeAndTableVec(recipient3PubK1)
+        const splitKey3K1 = splitPubKeyToScopeAndTableVec(recipient2PubK1)
         const Key1Hex = pubKey1K1.toElliptic().getPublic(true, 'hex') + '00'
         let {
           rows: [item1, item2, item3],
@@ -398,6 +399,113 @@ describe('SavPay', () => {
         await assertEOSErrorIncludesMessage(contract.reject(users[1].name, 0, { from: users[1] }), 'Entry does not exist.')
       })
     })
+    context('G/5 key to name', async () => {
+      it('should fail with auth error by sender auth 1', async () => {
+        await assertMissingAuthority(contract.reject(users[2].name, 0, { from: users[0] }))
+      })
+      it('should fail with auth error by contract auth 2', async () => {
+        await assertMissingAuthority(contract.reject(users[2].name, 0, { from: contract.account }))
+      })
+      it('should succeed 3', async () => {
+        await check.ramTrace(async () => {
+          return await contract.reject(users[2].name, 0, { from: users[2] })
+        })
+      })
+      it('should update tables 4', async () => {
+        const {
+          rows: [item],
+        } = await contract.pay2nameTable({ scope: users[2].name, lowerBound: '0', limit: 1 })
+        chai.expect(item.time).equal(0, 'Payment is not marked as rejected')
+
+        const [newContractAsset, newuser0Asset, newuser2Asset] = await getBalances([contract.account, users[0], users[2]], sys_token)
+        chai.expect(contractAsset.amount - newContractAsset.amount).equal(0, 'Changed balance')
+        chai.expect(newuser0Asset.amount - user0Asset.amount).equal(0, 'Changed balance')
+        chai.expect(newuser2Asset.amount - newuser2Asset.amount).equal(0, 'Changed balance')
+        user0Asset.amount = newuser0Asset.amount
+        contractAsset.amount = newContractAsset.amount
+      })
+      it('should fail to reject a not existing id 5', async () => {
+        await assertEOSErrorIncludesMessage(contract.reject(users[2].name, 0, { from: users[2] }), 'The payment has already been rejected.')
+      })
+    })
+    context('H/7 name to key', async () => {
+      let sig: string
+      let currentTime: number
+      before(async () => {
+        currentTime = Math.round(Date.now() / 1000)
+        sig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+      })
+      it('should fail with other time than signed 1', async () => {
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime - 1, sig, { from: users[3] }))
+      })
+      it('should fail with wrong signed public key 2', async () => {
+        const wrongSig = signReject(users[0].privateKey as string, mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, wrongSig, { from: users[3] }))
+      })
+      it('should fail with too old time 3', async () => {
+        const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
+        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, oldTime, oldTimeSig, { from: users[3] }), 'The transaction is expired.')
+      })
+      it('should fail with future time 4', async () => {
+        const futureTime = Math.round(Date.now() / 1000) + 100
+        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, futureTime, futureTimeSig, { from: users[3] }), 'The transaction is expired.')
+      })
+      it('should fail with other id than signed 5', async () => {
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 1, currentTime, sig, { from: users[3] }))
+      })
+      it('should succeed with any account 6', async () => {
+        await check.ramTrace(async () => {
+          return await contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: users[3] })
+        })
+      })
+      it('should fail to reject a not existing id 7', async () => {
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: users[2] }), 'Entry does not exist.')
+      })
+    })
+    context('I/7 key to key', async () => {
+      let sig: string
+      let currentTime: number
+      let recipient2PubK1: PublicKey
+      before(async () => {
+        currentTime = Math.round(Date.now() / 1000)
+        if (users[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(users[2].publicKey)
+        }
+        const fromhex = hexWithTypeOfPubKey(pubKey1K1)
+        const sigData = signReject(users[2].privateKey as string, mainNetChainId, contract.account.name, fromhex, '0', currentTime.toString())
+        sig = sigData.sig
+      })
+      it('should fail with other time than signed 1', async () => {
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime - 1, sig, { from: users[1] }))
+      })
+      it('should fail with wrong signed public key 2', async () => {
+        const wrongSig = signReject(users[0].privateKey as string, mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, wrongSig, { from: users[1] }))
+      })
+      it('should fail with too old time 3', async () => {
+        const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
+        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, oldTime, oldTimeSig, { from: users[1] }), 'The transaction is expired.')
+      })
+      it('should fail with future time 4', async () => {
+        const futureTime = Math.round(Date.now() / 1000) + 100
+        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, futureTime, futureTimeSig, { from: users[1] }), 'The transaction is expired.')
+      })
+      it('should fail with other id than signed 5', async () => {
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 1, currentTime, sig, { from: users[1] }))
+      })
+      it('should succeed with any account 6', async () => {
+        await check.ramTrace(async () => {
+          return await contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: users[1] })
+        })
+      })
+      it('should fail to reject a not existing id 7', async () => {
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: users[2] }), 'The payment has already been rejected.')
+      })
+    })
   })
   context('?/? finish payment', async () => {
     //TODO:
@@ -422,8 +530,8 @@ describe('SavPay', () => {
  * @returns
  */
 function signReject(privateKey: string, chainId: string, contract_name: string, from: string, id: string, sigtime: string) {
-  const tosig = `${chainId} ${contract_name} reject ${from} ${id} ${sigtime}`
-  return ecc.sign(tosig, privateKey) // sha256
+  const raw = `${chainId} ${contract_name} reject ${from} ${id} ${sigtime}`
+  return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
 
 // TODO: Write tests for every case
@@ -461,8 +569,3 @@ function signReject(privateKey: string, chainId: string, contract_name: string, 
 // contract.removeram
 // contract.settoken
 // contract.removetoken
-
-// Notes:
-// Table parameter "ramBy" is the contract account if the recipient will get the RAM after the transaction is finalized.
-// Table parameter "from" is the sender account name value as byte vector
-// Memo of token transfer is limited to 256 characters

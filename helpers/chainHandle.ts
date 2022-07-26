@@ -72,3 +72,10 @@ export async function issueToken(token: Token, accounts: Array<Account>, amountP
     await token.contract.transfer(sender.name, account.name, sharedAssetString, 'inital balance', { from: sender })
   }
 }
+
+export async function shouldFail(action: Promise<any>) {
+  try {
+    await action
+    throw 'Transaction succeeded but it sould have failed.'
+  } catch (e) {}
+}
