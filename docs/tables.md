@@ -22,7 +22,7 @@ Payments to a public key are listed on the pay2key table. The `scope` are the la
 
 ## data
 
-This table stores the next free primary key from the pay2name and pay2key tables. For `pay2name` the scope is `"name"` and for the pay2key table the scope is `"key"`.
+This table stores the next free primary key from the pay2name and pay2key tables. For `pay2name` the scope name value is `name` and for the pay2key table it is `key`.
 
 The primary key on the payment tables always count up. This value will never fall back to a previous value as long it reaches an overflow. Then it will start by 0, but the primary key is an unsigned 64 bit integer so it will never happen.
 
