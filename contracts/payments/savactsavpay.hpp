@@ -475,7 +475,7 @@ public:
             const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
             name from(*nameValue);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
@@ -527,7 +527,7 @@ public:
             name from(*nameValue);
             from_str = from.to_string();
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back including the RAM
@@ -564,7 +564,7 @@ public:
      * @param id Id of the payment
      */
     ACTION finalize(const string& to, const uint64_t id) {
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             // Recipient is a name
             name to_name(to);
             // Find entry
@@ -579,7 +579,7 @@ public:
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
 
-            // Burn the payment and handle RAM
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
@@ -608,7 +608,7 @@ public:
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
 
-            // Burn the payment and handle RAM
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient.
@@ -626,14 +626,14 @@ public:
      * @param to Recipient
      * @param id Id of the payment
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} finalize {name of from or public key in hex format of from} {id} {sigtime}"
+     * @param sig Signature of "{Chain id} {Name of this contract} finalize {name of to or public key of to} {id} {sigtime}"
      */
     ACTION finalizesig(const string& to, const uint64_t id, const uint32_t sigtime, const signature& sig) {
         auto currentTime = eosio::current_time_point().sec_since_epoch();
         check(currentTime - sigtime < expirationTime, "The transaction is expired.");
 
         public_key pubkey;
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             // Origin recipient is a name
             name to_name(to);
 
@@ -650,7 +650,7 @@ public:
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment and handle RAM
@@ -680,7 +680,7 @@ public:
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient
@@ -703,7 +703,7 @@ public:
      */
     ACTION invalidate(const string& to, const uint64_t id) {
 
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             // Recipient is a name
             name to_name(to);
             // Find entry
@@ -718,7 +718,7 @@ public:
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
 
-            // Burn the payment and handle RAM
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back and handle RAM
@@ -747,7 +747,7 @@ public:
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
 
-            // Burn the payment and handle RAM
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment including the RAM
@@ -771,7 +771,7 @@ public:
         check(currentTime - sigtime < expirationTime, "The transaction is expired.");
 
         public_key pubkey;
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             // Origin recipient is a name
             name to_name(to);
 
@@ -788,7 +788,7 @@ public:
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment and handle RAM
@@ -818,7 +818,7 @@ public:
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Burn the payment including the RAM
@@ -842,7 +842,7 @@ public:
      */
     ACTION payoff(const string& to, const uint64_t id) {
         // Note: Everyone can execute this transaction
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             name to_name(to);
 
             pay2name_table _pay2name(get_self(), to_name.value);
@@ -856,7 +856,7 @@ public:
                 const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
                 name from(*nameValue);
 
-                // Get amount of RAM which will be free
+                // Get released RAM amount
                 int32_t freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
                 // Send the payment to the sender and handle RAM
@@ -867,7 +867,7 @@ public:
                 // Check if the time has expired
                 check(eosio::current_time_point().sec_since_epoch() > itr->time, "The time limit has not expired, yet.");
 
-                // Get amount of RAM which will be free
+                // Get released RAM amount
                 int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
                 // Send the payment to the origin recipient and handle RAM
@@ -892,7 +892,7 @@ public:
             const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
             name from(*nameValue);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             int32_t freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Send the payment to the sender including the RAM
@@ -916,7 +916,7 @@ public:
         check(!is_account(recipient), "Account does not exist.");
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
 
-        if (to.size() == 8) {
+        if (to.size() <= 13) {
             // Recipient is a name
             // Pay off the sender of a rejected payment, where the origin recipient is a name and the sender a public key
             name to_name(to);
@@ -933,7 +933,7 @@ public:
             checkStr.append(chainIDAndContractName).append(" payoff ").append(to).append(recipient.to_string()).append(" ").append(std::to_string(id)).append(" ").append(std::to_string(sigtime));
             assert_recover_key(sha256(&checkStr[0], checkStr.size()), sig, Conversion::GetPubKeyFromVector(itr->from));
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
 
             // Send the payment to the recipient and handle RAM
@@ -973,7 +973,7 @@ public:
             checkStr.append(chainIDAndContractName).append(" payoff ").append(to).append(" ").append(recipient.to_string()).append(" ").append(std::to_string(id)).append(" ").append(std::to_string(sigtime));
             assert_recover_key(sha256(&checkStr[0], checkStr.size()), sig, sign_pub_key);
 
-            // Get amount of RAM which will be free
+            // Get released RAM amount
             int32_t freeRAM = getRamForPayment(get_self(), itr->from.size() == 8, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Send payment to recipient including the RAM

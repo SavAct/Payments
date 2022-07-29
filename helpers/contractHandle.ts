@@ -57,8 +57,8 @@ export class Check {
     const ram_delta = ram_after - ram_before
     let ramlog = `RAM delta ${ram_delta}`
 
-    // console.log('action_traces', r.processed.action_traces)
-    // console.log('account_ram_deltas', r.processed.action_traces[0].account_ram_deltas)
+    // console.log('action_traces...', r.processed.action_traces)
+    // console.log('account_ram_deltas...', r.processed.action_traces[0].account_ram_deltas)
     // let sumDeltaRAM = 0
     // for (let a of r.processed.action_traces[0].account_ram_deltas) {
     //   sumDeltaRAM += a.delta

@@ -76,6 +76,8 @@ export async function issueToken(token: Token, accounts: Array<Account>, amountP
 export async function shouldFail(action: Promise<any>) {
   try {
     await action
-    throw 'Transaction succeeded but it sould have failed.'
-  } catch (e) {}
+  } catch (e) {
+    return true
+  }
+  throw 'Transaction succeeded but it sould have failed.'
 }
