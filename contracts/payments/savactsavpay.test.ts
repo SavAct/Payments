@@ -3,7 +3,7 @@
  *  Do not forget to set it back for production!
  */
 
-import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader } from 'lamington'
+import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader, sleep } from 'lamington'
 import * as chai from 'chai'
 import { Savactsavpay, SavactsavpayPay2key, SavactsavpayPay2name } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
@@ -19,7 +19,7 @@ import { Check } from '../../helpers/contractHandle'
 import base58 = require('bs58')
 
 let contract: Savactsavpay
-let users: Array<Account>
+let user: Array<Account>
 let nirvana: Account
 
 const savpay_contract_name = 'savactsavpay'
@@ -51,8 +51,8 @@ describe('SavPay', () => {
 
     // Create accounts
     nirvana = await AccountManager.createAccount(nirvana_name)
-    users = [await AccountManager.createAccount('user.zero'), await AccountManager.createAccount('user.one'), await AccountManager.createAccount('user.two')]
-    if (!users[0].publicKey || !users[0].privateKey || !users[1].publicKey || !users[1].privateKey || !users[2].publicKey || !users[2].privateKey) {
+    user = [await AccountManager.createAccount('user.zero'), await AccountManager.createAccount('user.one'), await AccountManager.createAccount('user.two')]
+    if (!user[0].publicKey || !user[0].privateKey || !user[1].publicKey || !user[1].privateKey || !user[2].publicKey || !user[2].privateKey) {
       throw 'No key for user'
     }
 
@@ -62,7 +62,7 @@ describe('SavPay', () => {
       contract: await ContractLoader.at<EosioToken>(sys_token_acc),
       symbol: sys_token_symbol,
     }
-    await issueToken(sys_token, [nirvana, users[0], users[1]], 10000000, EOSManager.adminAccount)
+    await issueToken(sys_token, [nirvana, user[0], user[1]], 10000000, EOSManager.adminAccount)
 
     // Deploy, initialize and issue a custom token
     custom_token = {
@@ -70,7 +70,7 @@ describe('SavPay', () => {
       symbol: new Symbol('FIAT', 2),
     }
     await initToken(custom_token)
-    await issueToken(custom_token, [users[2], users[1]], 10000)
+    await issueToken(custom_token, [user[2], user[1]], 10000)
 
     // Deploy SavPay and set eosio.code permission
     contract = await ContractDeployer.deployWithName<Savactsavpay>('contracts/payments/savactsavpay', savpay_contract_name)
@@ -100,12 +100,12 @@ describe('SavPay', () => {
     })
   })
 
-  // Payment via on_notify transfer
   let inOneDay: number
   let inOneDayBs58: string
   let sendAsset: Asset
   let sendAssetString: string
 
+  // Payment via on_notify transfer
   context('transfer via memo', async () => {
     before(async () => {
       inOneDay = Math.round(Date.now() / 1000 + 3600 * 24)
@@ -115,16 +115,16 @@ describe('SavPay', () => {
     })
     context('B/10 from name to name', async () => {
       it('should fail with wrong auth 1', async () => {
-        await assertMissingAuthority(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].name}.${inOneDayBs58}`, { from: users[1] }))
+        await assertMissingAuthority(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}.${inOneDayBs58}`, { from: user[1] }))
       })
       it('should succeed with correct auth 2', async () => {
-        const [contractAsset, users0Asset, users1Asset] = await getBalances([contract.account, users[0], users[1]], sys_token)
+        const [contractAsset, users0Asset, users1Asset] = await getBalances([contract.account, user[0], user[1]], sys_token)
 
         await check.ramTrace(async () => {
-          return await sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].name}!${inOneDayBs58}`, { from: users[0] })
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}!${inOneDayBs58}`, { from: user[0] })
         }, false) // First use of scope "name" which will be paid by the contract
 
-        const [newContractAsset, newusers0Asset, newusers1Asset] = await getBalances([contract.account, users[0], users[1]], sys_token)
+        const [newContractAsset, newusers0Asset, newusers1Asset] = await getBalances([contract.account, user[0], user[1]], sys_token)
         const sendAmount = users0Asset.amount - newusers0Asset.amount
         chai.expect(0).equal(users1Asset.amount - newusers1Asset.amount, 'Other user balance changed')
         chai.expect(sendAmount).equal(sendAsset.amount, 'User does not send the right amount of tokens')
@@ -133,9 +133,9 @@ describe('SavPay', () => {
       it('should update pay2name table 3', async () => {
         let {
           rows: [item],
-        } = await contract.pay2nameTable({ scope: users[1].name })
+        } = await contract.pay2nameTable({ scope: user[1].name })
         chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
-        chai.expect(item.from).equal(nameToFromHex(users[0].name), 'Wrong sender')
+        chai.expect(item.from).equal(nameToFromHex(user[0].name), 'Wrong sender')
         chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
         chai.expect(String(item.id)).equal(String(0), 'Wrong id')
         chai.expect(item.memo).equal('', 'There should no memo be defined')
@@ -144,65 +144,65 @@ describe('SavPay', () => {
       })
       it('should succeed with several signs in memo 4', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].name}!${inOneDayBs58};hello;!@$again`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}!${inOneDayBs58};hello;!@$again`, { from: user[0] })
         })
-        chai.expect((await contract.pay2nameTable({ scope: users[1].name })).rows.length).equal(2)
+        chai.expect((await contract.pay2nameTable({ scope: user[1].name })).rows.length).equal(2)
       })
       it('should fail with spaces between the commands 5', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].name} !${inOneDayBs58};withspaces`, { from: users[0] }), 'character is not in allowed character set for names')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name} !${inOneDayBs58};withspaces`, { from: user[0] }), 'character is not in allowed character set for names')
       })
       it('should fail without time value 6', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].name}`, { from: users[0] }), 'Missing time limit.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}`, { from: user[0] }), 'Missing time limit.')
       })
       it('should fail without recipient 7', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `!${inOneDayBs58}`, { from: users[0] }), 'Recipient does not exists.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `!${inOneDayBs58}`, { from: user[0] }), 'Recipient does not exists.')
       })
       it('should fail with a non existent recipient 8', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@nonexistent!${inOneDayBs58}`, { from: users[0] }), 'Recipient does not exists.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@nonexistent!${inOneDayBs58}`, { from: user[0] }), 'Recipient does not exists.')
       })
       it('should fail with zero balance 9', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, '0.0000 EOS', `@${inOneDayBs58}!${inOneDayBs58}`, { from: users[0] }), 'must transfer positive quantity')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, '0.0000 EOS', `@${inOneDayBs58}!${inOneDayBs58}`, { from: user[0] }), 'must transfer positive quantity')
       })
       it('should fail with negative balance 10', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, '-' + sendAssetString, `@${inOneDayBs58}!${inOneDayBs58}`, { from: users[0] }), 'must transfer positive quantity')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, '-' + sendAssetString, `@${inOneDayBs58}!${inOneDayBs58}`, { from: user[0] }), 'must transfer positive quantity')
       })
     })
     context('C/10 from key to name', async () => {
       it('should fail with invalid key length 1', async () => {
         const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aa' + pubKey1K1.toLegacyString().substring(10)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${users[2].name}!${inOneDayBs58}`, { from: users[0] }), 'Invalid length of public key.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${user[2].name}!${inOneDayBs58}`, { from: user[0] }), 'Invalid length of public key.')
       })
       it('should fail with typo in legacy key 2', async () => {
         const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toLegacyString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${users[2].name}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${user[2].name}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with legacy key 3', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${users[2].name}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
         })
       })
       it('should fail with typo in K1 key 4', async () => {
         const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${users[2].name}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${user[2].name}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with K1 key 5', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${users[2].name}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
         })
       })
       it('should succeed with memo 6', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${users[2].name}!${inOneDayBs58};@new?key;format!`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
         })
       })
       it('should fail with R1 key 7', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${users[2].name}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${user[2].name}!${inOneDayBs58}`, { from: user[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should update pay2name table 8', async () => {
         const Key1Hex = pubKey1K1.toElliptic().getPublic(true, 'hex') + '00'
         let {
           rows: [item1, item2, item3],
-        } = await contract.pay2nameTable({ scope: users[2].name })
+        } = await contract.pay2nameTable({ scope: user[2].name })
 
         const testPay2NameTable = (item: SavactsavpayPay2name, id: number) => {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
@@ -222,42 +222,42 @@ describe('SavPay', () => {
         testPay2NameTable(item3, 2)
       })
       it('should fail without time value 9', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${users[2].publicKey}@${users[2].name}`, { from: users[0] }), 'Missing time limit.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[2].publicKey}@${user[2].name}`, { from: user[0] }), 'Missing time limit.')
       })
       it('should fail with a non existent recipient 10', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${users[2].publicKey}@nonexistent!${inOneDayBs58}`, { from: users[0] }), 'Recipient does not exists.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[2].publicKey}@nonexistent!${inOneDayBs58}`, { from: user[0] }), 'Recipient does not exists.')
       })
     })
     context('D/9 from name to key', async () => {
       it('should fail with invalid key length 1', async () => {
         const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aa' + pubKey1K1.toLegacyString().substring(10)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: users[0] }), 'Invalid length of public key.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: user[0] }), 'Invalid length of public key.')
       })
       it('should fail with typo in legacy key 2', async () => {
         const wrong_pubkeyLegacy = pubKey1K1.toLegacyString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toLegacyString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyLegacy}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with legacy key 3', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toLegacyString()}!${inOneDayBs58}`, { from: user[0] })
         }, false) // First use of scope "key" which will be paid by the contract
       })
       it('should fail with typo in K1 key 4', async () => {
         const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyk1}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${wrong_pubkeyk1}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with K1 key 5', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58}`, { from: user[0] })
         })
       })
       it('should succeed with K1 memo 6', async () => {
         await check.ramTrace(async () => {
-          return await sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58};@new?key;format!`, { from: users[0] })
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
         })
       })
       it('should fail with R1 key 7', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${pubKey1R1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1R1.toString()}!${inOneDayBs58}`, { from: user[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should update pay2name table 8', async () => {
         let {
@@ -266,7 +266,7 @@ describe('SavPay', () => {
 
         const testPay2KeyTable = (item: SavactsavpayPay2key, id: number) => {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
-          chai.expect(item.from).equal(nameToFromHex(users[0].name), 'Wrong sender')
+          chai.expect(item.from).equal(nameToFromHex(user[0].name), 'Wrong sender')
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
           chai.expect(String(item.id)).equal(String(id), 'Wrong id')
           if (item.memo) {
@@ -283,48 +283,48 @@ describe('SavPay', () => {
         testPay2KeyTable(item3, 2)
       })
       it('should fail without time value 9', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `@${users[1].publicKey}`, { from: users[0] }), 'Missing time limit.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].publicKey}`, { from: user[0] }), 'Missing time limit.')
       })
     })
     context('E/10 from key to key', async () => {
       let recipient2PubK1: PublicKey
       before(async () => {
-        if (users[2].publicKey) {
-          recipient2PubK1 = PublicKey.fromString(users[2].publicKey)
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
         }
       })
       it('should fail with invalid key length 1', async () => {
         const wrong_pubkeyLegacy = recipient2PubK1.toLegacyString().substring(0, 10) + 'aa' + recipient2PubK1.toLegacyString().substring(10)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Invalid length of public key.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: user[0] }), 'Invalid length of public key.')
       })
       it('should fail with typo in legacy key 2', async () => {
         const wrong_pubkeyLegacy = recipient2PubK1.toLegacyString().substring(0, 10) + 'aaaaaa' + recipient2PubK1.toLegacyString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyLegacy}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with legacy key 3', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toLegacyString()}@${recipient2PubK1.toLegacyString()}!${inOneDayBs58}`, { from: user[0] })
         })
       })
       it('should fail with typo in K1 key 4', async () => {
         const wrong_pubkeyk1 = pubKey1K1.toString().substring(0, 10) + 'aaaaaa' + pubKey1K1.toString().substring(16)
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Wrong checksum, check the public key for typos.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${wrong_pubkeyk1}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] }), 'Wrong checksum, check the public key for typos.')
       })
       it('should succeed with K1 key 5', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] })
         })
       })
       it('should succeed with memo 6', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};@new?key;format!`, { from: users[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
         })
       })
       it('should fail with R1 sender key 7', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should fail with R1 sender and receiver key 8', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: users[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
       })
       it('should update pay2name table 9', async () => {
         const splitKey3K1 = splitPubKeyToScopeAndTableVec(recipient2PubK1)
@@ -352,7 +352,7 @@ describe('SavPay', () => {
         testPay2KeyTable(item3, 2)
       })
       it('should fail without time value 10', async () => {
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(users[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${users[1].publicKey}`, { from: users[0] }), 'Missing time limit.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${user[1].publicKey}`, { from: user[0] }), 'Missing time limit.')
       })
     })
   })
@@ -365,27 +365,27 @@ describe('SavPay', () => {
     let user2Asset: Asset
     let storedAsset: Asset
     before(async () => {
-      ;[contractAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, users[0], users[1], users[2]], sys_token)
+      ;[contractAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, user[0], user[1], user[2]], sys_token)
       const {
         rows: [item],
-      } = await contract.pay2nameTable({ scope: users[1].name, lowerBound: 0, limit: 1 })
+      } = await contract.pay2nameTable({ scope: user[1].name, lowerBound: 0, limit: 1 })
       storedAsset = stringToAsset(item.fund)
     })
     context('F/5 name to name', async () => {
       it('should fail with auth error by sender auth 1', async () => {
-        await assertMissingAuthority(contract.reject(users[1].name, 0, { from: users[0] }))
+        await assertMissingAuthority(contract.reject(user[1].name, 0, { from: user[0] }))
       })
       it('should fail with auth error by contract auth 2', async () => {
-        await assertMissingAuthority(contract.reject(users[1].name, 0, { from: contract.account }))
+        await assertMissingAuthority(contract.reject(user[1].name, 0, { from: contract.account }))
       })
       it('should succeed 3', async () => {
         await check.ramTrace(async () => {
-          return await contract.reject(users[1].name, 0, { from: users[1] })
+          return await contract.reject(user[1].name, 0, { from: user[1] })
         })
       })
       it('should update tables 4', async () => {
-        await check.checkPayment2Name_NotExist(users[1].name, 0)
-        const [newContractAsset, newuser0Asset, newuser1Asset] = await getBalances([contract.account, users[0], users[1]], sys_token)
+        await check.checkPayment2Name_NotExist(user[1].name, 0)
+        const [newContractAsset, newuser0Asset, newuser1Asset] = await getBalances([contract.account, user[0], user[1]], sys_token)
 
         chai.expect(storedAsset.amount).greaterThan(0, 'No asset in pay2name table entry')
         const sendAmount = contractAsset.amount - newContractAsset.amount
@@ -396,28 +396,28 @@ describe('SavPay', () => {
         contractAsset.amount = newContractAsset.amount
       })
       it('should fail to reject a not existing id 5', async () => {
-        await assertEOSErrorIncludesMessage(contract.reject(users[1].name, 0, { from: users[1] }), 'Entry does not exist.')
+        await assertEOSErrorIncludesMessage(contract.reject(user[1].name, 0, { from: user[1] }), 'Entry does not exist.')
       })
     })
     context('G/5 key to name', async () => {
       it('should fail with auth error by sender auth 1', async () => {
-        await assertMissingAuthority(contract.reject(users[2].name, 0, { from: users[0] }))
+        await assertMissingAuthority(contract.reject(user[2].name, 0, { from: user[0] }))
       })
       it('should fail with auth error by contract auth 2', async () => {
-        await assertMissingAuthority(contract.reject(users[2].name, 0, { from: contract.account }))
+        await assertMissingAuthority(contract.reject(user[2].name, 0, { from: contract.account }))
       })
       it('should succeed 3', async () => {
         await check.ramTrace(async () => {
-          return await contract.reject(users[2].name, 0, { from: users[2] })
+          return await contract.reject(user[2].name, 0, { from: user[2] })
         })
       })
       it('should update tables 4', async () => {
         const {
           rows: [item],
-        } = await contract.pay2nameTable({ scope: users[2].name, lowerBound: '0', limit: 1 })
+        } = await contract.pay2nameTable({ scope: user[2].name, lowerBound: '0', limit: 1 })
         chai.expect(item.time).equal(0, 'Payment is not marked as rejected')
 
-        const [newContractAsset, newuser0Asset, newuser2Asset] = await getBalances([contract.account, users[0], users[2]], sys_token)
+        const [newContractAsset, newuser0Asset, newuser2Asset] = await getBalances([contract.account, user[0], user[2]], sys_token)
         chai.expect(contractAsset.amount - newContractAsset.amount).equal(0, 'Changed balance')
         chai.expect(newuser0Asset.amount - user0Asset.amount).equal(0, 'Changed balance')
         chai.expect(newuser2Asset.amount - newuser2Asset.amount).equal(0, 'Changed balance')
@@ -425,7 +425,7 @@ describe('SavPay', () => {
         contractAsset.amount = newContractAsset.amount
       })
       it('should fail to reject a not existing id 5', async () => {
-        await assertEOSErrorIncludesMessage(contract.reject(users[2].name, 0, { from: users[2] }), 'The payment has already been rejected.')
+        await assertEOSErrorIncludesMessage(contract.reject(user[2].name, 0, { from: user[2] }), 'The payment has already been rejected.')
       })
     })
     context('H/7 name to key', async () => {
@@ -433,35 +433,35 @@ describe('SavPay', () => {
       let currentTime: number
       before(async () => {
         currentTime = Math.round(Date.now() / 1000)
-        sig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
+        sig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
       })
       it('should fail with other time than signed 1', async () => {
-        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime - 1, sig, { from: users[3] }))
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime - 1, sig, { from: user[3] }))
       })
       it('should fail with wrong signed public key 2', async () => {
-        const wrongSig = signReject(users[0].privateKey as string, mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, wrongSig, { from: users[3] }))
+        const wrongSig = signReject(user[0].privateKey as string, mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, wrongSig, { from: user[3] }))
       })
       it('should fail with too old time 3', async () => {
         const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
-        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, oldTime, oldTimeSig, { from: users[3] }), 'The transaction is expired.')
+        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, oldTime, oldTimeSig, { from: user[3] }), 'The transaction is expired.')
       })
       it('should fail with future time 4', async () => {
         const futureTime = Math.round(Date.now() / 1000) + 100
-        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, futureTime, futureTimeSig, { from: users[3] }), 'The transaction is expired.')
+        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, futureTime, futureTimeSig, { from: user[3] }), 'The transaction is expired.')
       })
       it('should fail with other id than signed 5', async () => {
-        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 1, currentTime, sig, { from: users[3] }))
+        await shouldFail(contract.rejectsig(pubKey1K1.toString(), 1, currentTime, sig, { from: user[3] }))
       })
       it('should succeed with any account 6', async () => {
         await check.ramTrace(async () => {
-          return await contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: users[3] })
+          return await contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: user[3] })
         })
       })
       it('should fail to reject a not existing id 7', async () => {
-        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: users[2] }), 'Entry does not exist.')
+        await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: user[2] }), 'Entry does not exist.')
       })
     })
     context('I/7 key to key', async () => {
@@ -470,46 +470,46 @@ describe('SavPay', () => {
       let recipient2PubK1: PublicKey
       before(async () => {
         currentTime = Math.round(Date.now() / 1000)
-        if (users[2].publicKey) {
-          recipient2PubK1 = PublicKey.fromString(users[2].publicKey)
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
         }
         const fromhex = hexWithTypeOfPubKey(pubKey1K1)
-        const sigData = signReject(users[2].privateKey as string, mainNetChainId, contract.account.name, fromhex, '0', currentTime.toString())
+        const sigData = signReject(user[2].privateKey as string, mainNetChainId, contract.account.name, fromhex, '0', currentTime.toString())
         sig = sigData.sig
       })
       it('should fail with other time than signed 1', async () => {
-        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime - 1, sig, { from: users[1] }))
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime - 1, sig, { from: user[1] }))
       })
       it('should fail with wrong signed public key 2', async () => {
-        const wrongSig = signReject(users[0].privateKey as string, mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, wrongSig, { from: users[1] }))
+        const wrongSig = signReject(user[0].privateKey as string, mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, wrongSig, { from: user[1] }))
       })
       it('should fail with too old time 3', async () => {
         const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
-        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, oldTime, oldTimeSig, { from: users[1] }), 'The transaction is expired.')
+        const oldTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, oldTime, oldTimeSig, { from: user[1] }), 'The transaction is expired.')
       })
       it('should fail with future time 4', async () => {
         const futureTime = Math.round(Date.now() / 1000) + 100
-        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, users[0].name, '0', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, futureTime, futureTimeSig, { from: users[1] }), 'The transaction is expired.')
+        const futureTimeSig = signReject(priKey1K1.toString(), mainNetChainId, contract.account.name, user[0].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, futureTime, futureTimeSig, { from: user[1] }), 'The transaction is expired.')
       })
       it('should fail with other id than signed 5', async () => {
-        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 1, currentTime, sig, { from: users[1] }))
+        await shouldFail(contract.rejectsig(recipient2PubK1.toString(), 1, currentTime, sig, { from: user[1] }))
       })
       it('should succeed with any account 6', async () => {
         await check.ramTrace(async () => {
-          return await contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: users[1] })
+          return await contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: user[1] })
         })
       })
       it('should fail to reject a not existing id 7', async () => {
-        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: users[2] }), 'The payment has already been rejected.')
+        await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: user[2] }), 'The payment has already been rejected.')
       })
     })
   })
 
-  // finish payment
-  context('finish payment', async () => {
+  // Finalize
+  context('finalize payment', async () => {
     let contractAsset: Asset
     let nirvanaAsset: Asset
     let user0Asset: Asset
@@ -517,27 +517,27 @@ describe('SavPay', () => {
     let user2Asset: Asset
     let storedAsset: Asset
     before(async () => {
-      ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, users[0], users[1], users[2]], sys_token)
+      ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
       const {
         rows: [item],
-      } = await contract.pay2nameTable({ scope: users[1].name, lowerBound: 1, limit: 1 })
+      } = await contract.pay2nameTable({ scope: user[1].name, lowerBound: 1, limit: 1 })
       storedAsset = stringToAsset(item.fund)
     })
     context('J/5 name to name', async () => {
       it('should fail with auth error by sender auth 1', async () => {
-        await assertMissingAuthority(contract.finalize(users[1].name, 1, { from: users[2] }))
+        await assertMissingAuthority(contract.finalize(user[1].name, 1, { from: user[2] }))
       })
       it('should fail with auth error by contract auth 2', async () => {
-        await assertMissingAuthority(contract.finalize(users[1].name, 1, { from: contract.account }))
+        await assertMissingAuthority(contract.finalize(user[1].name, 1, { from: contract.account }))
       })
       it('should succeed 3', async () => {
         await check.ramTrace(async () => {
-          return await contract.finalize(users[1].name, 1, { from: users[0] })
+          return await contract.finalize(user[1].name, 1, { from: user[0] })
         })
       })
       it('should update tables 4', async () => {
-        await check.checkPayment2Name_NotExist(users[1].name, 1)
-        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, users[0], users[1], users[1]], sys_token)
+        await check.checkPayment2Name_NotExist(user[1].name, 1)
+        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[1]], sys_token)
 
         chai.expect(storedAsset.amount).greaterThan(0, 'No asset in pay2name table entry')
         const sendToNirvana = newNirvanaAsset.amount - nirvanaAsset.amount
@@ -552,19 +552,19 @@ describe('SavPay', () => {
         nirvanaAsset.amount = newNirvanaAsset.amount
       })
       it('should fail to finalize a not existing id 5', async () => {
-        await assertEOSErrorIncludesMessage(contract.finalize(users[1].name, 1, { from: users[0] }), 'Entry does not exist.')
+        await assertEOSErrorIncludesMessage(contract.finalize(user[1].name, 1, { from: user[0] }), 'Entry does not exist.')
       })
     })
     context('K/5 name to key', async () => {
       it('should fail with auth error by sender auth 1', async () => {
-        await assertMissingAuthority(contract.finalize(pubKey1K1.toString(), 1, { from: users[2] }))
+        await assertMissingAuthority(contract.finalize(pubKey1K1.toString(), 1, { from: user[2] }))
       })
       it('should fail with auth error by contract auth 2', async () => {
         await assertMissingAuthority(contract.finalize(pubKey1K1.toString(), 1, { from: contract.account }))
       })
       it('should succeed 3', async () => {
         await check.ramTrace(async () => {
-          return await contract.finalize(pubKey1K1.toString(), 1, { from: users[0] })
+          return await contract.finalize(pubKey1K1.toString(), 1, { from: user[0] })
         })
       })
       it('should update tables 4', async () => {
@@ -573,7 +573,7 @@ describe('SavPay', () => {
         } = await contract.pay2keyTable({ scope: splitKey1K1.scope.toString(), lowerBound: '1', limit: 1 })
         chai.expect(item.time).equal(1, 'Payment is not marked as finished')
 
-        const [newContractAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, users[0], users[1], users[2]], sys_token)
+        const [newContractAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, user[0], user[1], user[2]], sys_token)
         chai.expect(contractAsset.amount - newContractAsset.amount).equal(0, 'Changed balance')
         chai.expect(newuser0Asset.amount - user0Asset.amount).equal(0, 'Changed balance')
         chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance')
@@ -582,44 +582,44 @@ describe('SavPay', () => {
         contractAsset.amount = newContractAsset.amount
       })
       it('should fail to finalize a not existing id 5', async () => {
-        await assertEOSErrorIncludesMessage(contract.finalize(pubKey1K1.toString(), 1, { from: users[0] }), 'Time limit is already expired.')
+        await assertEOSErrorIncludesMessage(contract.finalize(pubKey1K1.toString(), 1, { from: user[0] }), 'Payment is already finalized.')
       })
     })
-    context('L/7 key to name', async () => {
+    context('L/8 key to name', async () => {
       let sig: string
       let currentTime: number
       before(async () => {
         currentTime = Math.round(Date.now() / 1000)
-        sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, users[2].name, '1', currentTime.toString()).sig
+        sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '1', currentTime.toString()).sig
       })
       it('should fail with other time than signed 1', async () => {
-        await shouldFail(contract.finalizesig(users[2].name, 1, currentTime - 1, sig, { from: users[3] }))
+        await shouldFail(contract.finalizesig(user[2].name, 1, currentTime - 1, sig, { from: user[3] }))
       })
       it('should fail with wrong signed public key 2', async () => {
-        const wrongSig = signFinalize(priKey1K1.toString() as string, mainNetChainId, contract.account.name, users[0].name, '1', currentTime.toString()).sig
-        await shouldFail(contract.finalizesig(users[2].name, 1, currentTime, wrongSig, { from: users[3] }))
+        const wrongSig = signFinalize(priKey1K1.toString() as string, mainNetChainId, contract.account.name, user[0].name, '1', currentTime.toString()).sig
+        await shouldFail(contract.finalizesig(user[2].name, 1, currentTime, wrongSig, { from: user[3] }))
       })
       it('should fail with too old time 3', async () => {
         const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
-        const oldTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, users[2].name, '1', oldTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.finalizesig(users[2].name, 1, oldTime, oldTimeSig, { from: users[3] }), 'The transaction is expired.')
+        const oldTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '1', oldTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(user[2].name, 1, oldTime, oldTimeSig, { from: user[3] }), 'The transaction is expired.')
       })
       it('should fail with future time 4', async () => {
         const futureTime = Math.round(Date.now() / 1000) + 100
-        const futureTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, users[2].name, '1', futureTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.finalizesig(users[2].name, 1, futureTime, futureTimeSig, { from: users[3] }), 'The transaction is expired.')
+        const futureTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '1', futureTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(user[2].name, 1, futureTime, futureTimeSig, { from: user[3] }), 'The transaction is expired.')
       })
       it('should fail with other id than signed 5', async () => {
-        await shouldFail(contract.finalizesig(users[2].name, 2, currentTime, sig, { from: users[3] }))
+        await shouldFail(contract.finalizesig(user[2].name, 2, currentTime, sig, { from: user[3] }))
       })
       it('should succeed with any account 6', async () => {
         await check.ramTrace(async () => {
-          return await contract.finalizesig(users[2].name, 1, currentTime, sig, { from: users[3] })
+          return await contract.finalizesig(user[2].name, 1, currentTime, sig, { from: user[3] })
         }, false) // user.two has no eosio.token entry, yet. So the RAM will be used to open an entry for 240 bytes
       })
       it('should update tables 7', async () => {
-        await check.checkPayment2Name_NotExist(users[2].name, 1)
-        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, users[0], users[1], users[2]], sys_token)
+        await check.checkPayment2Name_NotExist(user[2].name, 1)
+        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
 
         chai.expect(storedAsset.amount).greaterThan(0, 'No asset in pay2name table entry')
         const sendToNirvana = newNirvanaAsset.amount - nirvanaAsset.amount
@@ -633,59 +633,216 @@ describe('SavPay', () => {
         contractAsset.amount = newContractAsset.amount
       })
       it('should fail to finalize a not existing id 8', async () => {
-        await assertEOSErrorIncludesMessage(contract.finalizesig(users[2].name, 1, currentTime, sig, { from: users[2] }), 'Entry does not exist.')
+        await assertEOSErrorIncludesMessage(contract.finalizesig(user[2].name, 1, currentTime, sig, { from: user[2] }), 'Entry does not exist.')
       })
     })
-    context('M/7 key to key', async () => {
+    context('M/8 key to key', async () => {
       let sig: string
       let currentTime: number
       let recipient2PubK1: PublicKey
       before(async () => {
         currentTime = Math.round(Date.now() / 1000)
-        if (users[2].publicKey) {
-          recipient2PubK1 = PublicKey.fromString(users[2].publicKey)
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
         }
         sig = signFinalize(priKey1K1.toString() as string, mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
       })
       it('should fail with other time than signed 1', async () => {
-        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime - 1, sig, { from: users[1] }))
+        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime - 1, sig, { from: user[1] }))
       })
       it('should fail with wrong signed public key 2', async () => {
-        const wrongSig = signFinalize(users[0].privateKey as string, mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
-        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, wrongSig, { from: users[1] }))
+        const wrongSig = signFinalize(user[0].privateKey as string, mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
+        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, wrongSig, { from: user[1] }))
       })
       it('should fail with too old time 3', async () => {
         const oldTime = Math.round(Date.now() / 1000) - 24 * 3600
         const oldTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, oldTime, oldTimeSig, { from: users[1] }), 'The transaction is expired.')
+        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, oldTime, oldTimeSig, { from: user[1] }), 'The transaction is expired.')
       })
       it('should fail with future time 4', async () => {
         const futureTime = Math.round(Date.now() / 1000) + 100
         const futureTimeSig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, futureTime, futureTimeSig, { from: users[1] }), 'The transaction is expired.')
+        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, futureTime, futureTimeSig, { from: user[1] }), 'The transaction is expired.')
       })
       it('should fail with other id than signed 5', async () => {
-        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 2, currentTime, sig, { from: users[1] }))
+        await shouldFail(contract.finalizesig(recipient2PubK1.toString(), 2, currentTime, sig, { from: user[1] }))
       })
       it('should succeed with any account 6', async () => {
         await check.ramTrace(async () => {
-          return await contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, sig, { from: users[1] })
+          return await contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, sig, { from: user[1] })
         })
       })
       it('should fail to finalize an already finalized payment 7', async () => {
-        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, sig, { from: users[2] }), 'Time limit is already expired.')
+        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 1, currentTime, sig, { from: user[2] }), 'Payment is already finalized.')
       })
       it('should succeed with legacy key 8', async () => {
         const sigLegacy = signFinalize(priKey1K1.toString() as string, mainNetChainId, contract.account.name, recipient2PubK1.toLegacyString(), '2', currentTime.toString()).sig
         await check.ramTrace(async () => {
-          return await contract.finalizesig(recipient2PubK1.toLegacyString(), 2, currentTime, sigLegacy, { from: users[1] })
+          return await contract.finalizesig(recipient2PubK1.toLegacyString(), 2, currentTime, sigLegacy, { from: user[1] })
         })
       })
     })
   })
+
+  // Check completed payments
+  let in3Secs: { start: number; startBase58: string; end: number; endBase58: string }
+  let recipient0PriK1: PrivateKey
+  let recipient0PubK1: PublicKey
+  let recipient0Split: { scope: bigint; tableVec: string }
+  context('check completed payments', async () => {
+    before(async () => {
+      recipient0PriK1 = PrivateKey.fromString(user[0].privateKey as string)
+      recipient0PubK1 = recipient0PriK1.getPublicKey()
+      recipient0Split = splitPubKeyToScopeAndTableVec(recipient0PubK1)
+      const timestampNow = Math.round(Date.now() / 1000)
+      in3Secs = {
+        start: timestampNow,
+        startBase58: base58.encode(numberTouInt32(timestampNow).reverse()),
+        end: Math.round(timestampNow + 3),
+        endBase58: base58.encode(numberTouInt32(Math.round(timestampNow + 3)).reverse()),
+      }
+      sendAsset = new Asset(10000, sys_token.symbol)
+      sendAssetString = sendAsset.toString()
+    })
+    context('N/4 set some further payments with "PAY" parameter', async () => {
+      it('should succeed from name to name 1', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${user[1].name}!${in3Secs.endBase58}`, { from: user[0] })
+        })
+      })
+      it('should succeed from key to name and memo 2', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[0].publicKey}@${user[1].name}!${in3Secs.endBase58};hello;!@$again`, { from: user[0] })
+        })
+        chai.expect((await contract.pay2nameTable({ scope: user[1].name })).rows.length).equal(2)
+      })
+      it('should succeed from name to key 3', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[0].publicKey}@${recipient0PubK1.toString()}!${in3Secs.endBase58}`, { from: user[0] })
+        })
+      })
+      it('should succeed from key to key and memo 4', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[0].publicKey}@${recipient0PubK1.toString()}!${in3Secs.endBase58};hello;!@$again`, { from: user[0] })
+        })
+        chai.expect((await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })).rows.length).equal(2)
+      })
+    })
+    context('O/3 finalize rejected payment', async () => {
+      let recipient2PubK1: PublicKey
+      let currentTime: number
+      before(async () => {
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+        }
+        currentTime = Math.round(Date.now() / 1000)
+      })
+      it('should fail on key to name payment by finalize action 1', async () => {
+        await assertEOSErrorIncludesMessage(contract.finalize(user[2].name, 0, { from: user[0] }), 'Payment is already rejected.')
+      })
+      it('should fail on key to name payment by finalizesig action 2', async () => {
+        const sigToName = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(user[2].name, 0, currentTime, sigToName, { from: user[0] }), 'Payment is already rejected.')
+      })
+      it('should fail on key to key payment 3', async () => {
+        const sigToKey = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient2PubK1.toString(), 0, currentTime, sigToKey, { from: user[0] }), 'Payment is already rejected.')
+      })
+    })
+    context('P/3 invalidate rejected payment', async () => {
+      let recipient2PubK1: PublicKey
+      let currentTime: number
+      before(async () => {
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+        }
+        currentTime = Math.round(Date.now() / 1000)
+      })
+      it('should fail on key to name payment by invalidate action 1', async () => {
+        await assertEOSErrorIncludesMessage(contract.invalidate(user[2].name, 0, { from: user[0] }), 'Payment is already rejected.')
+      })
+      it('should fail on key to name payment by invalisig action 2', async () => {
+        const sigToName = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.invalisig(user[2].name, 0, currentTime, sigToName, { from: user[0] }), 'Payment is already rejected.')
+      })
+      it('should fail on key to key payment 3', async () => {
+        const sigToKey = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.invalisig(recipient2PubK1.toString(), 0, currentTime, sigToKey, { from: user[0] }), 'Payment is already rejected.')
+      })
+    })
+    context('Q/1 invalidate finalized payment', async () => {
+      let recipient2PubK1: PublicKey
+      let currentTime: number
+      before(async () => {
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+        }
+        currentTime = Math.round(Date.now() / 1000)
+      })
+      it('should fail on key to key payment 1', async () => {
+        const sigToKey = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '1', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.invalisig(recipient2PubK1.toString(), 1, currentTime, sigToKey, { from: user[0] }), 'Payment is already finalized.')
+      })
+    })
+    context('R/6 time expired payment', async () => {
+      let recipient2PubK1: PublicKey
+      let currentTime: number
+      before(async () => {
+        if (user[2].publicKey) {
+          recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+        }
+        const currentMsTime = Date.now()
+        currentTime = Math.round(currentMsTime / 1000)
+        if (currentTime < in3Secs.end) {
+          console.log(`\nWait for ${in3Secs.end * 1000 - currentMsTime + 100} ms to reach time limit`)
+          await sleep(in3Secs.end * 1000 - currentMsTime + 100)
+        }
+        const r_name = await contract.pay2nameTable({ scope: user[1].name })
+        chai.expect(r_name.rows.length).equal(2, 'Wrong amount of entries')
+        chai.expect(r_name.rows[0].id).equal(2, 'Wrong id')
+        chai.expect(r_name.rows[0].time).equal(in3Secs.end, 'Wrong time limit')
+        chai.expect(r_name.rows[0].time).lessThanOrEqual(Math.round(Date.now() / 1000), 'Time limit not reached, yet')
+        const r_key = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r_key.rows.length).equal(2, 'Wrong amount of entries')
+        chai.expect(r_key.rows[0].id).equal(0, 'Wrong id')
+        chai.expect(r_key.rows[0].time).equal(in3Secs.end, 'Wrong time limit')
+        chai.expect(r_key.rows[0].time).lessThanOrEqual(Math.round(Date.now() / 1000), 'Time limit not reached, yet')
+      })
+      it('should fail to invalidate on pay2name by invalidate action 1', async () => {
+        await assertEOSErrorIncludesMessage(contract.invalidate(user[1].name, 2, { from: user[0] }), 'Time limit is already expired.')
+      })
+      it('should fail to invalidate on pay2name by invalisig action 2', async () => {
+        const sigToName = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[1].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.invalisig(user[1].name, 2, currentTime, sigToName, { from: user[0] }), 'Sender is not a public key.')
+      })
+      it('should fail to invalidate on pay2key 3', async () => {
+        const sigToKey = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient0PubK1.toString(), '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.invalisig(recipient0PubK1.toString(), 0, currentTime, sigToKey, { from: user[0] }), 'Time limit is already expired.')
+      })
+      it('should fail to finalize on pay2name by finalize action 4', async () => {
+        await assertEOSErrorIncludesMessage(contract.finalize(user[1].name, 2, { from: user[0] }), 'Time limit is already expired.')
+      })
+      it('should fail to finalize on pay2name by finalizesig action 5', async () => {
+        const sigToName = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[1].name, '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(user[1].name, 2, currentTime, sigToName, { from: user[0] }), 'Sender is not a public key.')
+      })
+      it('should fail to finalize on pay2key 6', async () => {
+        const sigToKey = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient0PubK1.toString(), '0', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.finalizesig(recipient0PubK1.toString(), 0, currentTime, sigToKey, { from: user[0] }), 'Time limit is already expired.')
+      })
+    })
+  })
+
+  // Pay off
+  context('payoff payment', async () => {
+    // TODO:
+  })
+
+  // Invalidate
   context('?/? invalidate payment', async () => {
     //TODO:
   })
+
   context('?/? deposited RAM', async () => {
     //TODO:
   })
@@ -693,6 +850,7 @@ describe('SavPay', () => {
 })
 
 /**
+ * Get the signature to reject a payment
  *
  * @param privateKey Key which signs the message
  * @param chainId Id of the chain where the contarct is deployed to
@@ -708,6 +866,7 @@ function signReject(privateKey: string, chainId: string, contract_name: string, 
 }
 
 /**
+ * Get the signature to finalize a payment
  *
  * @param privateKey Key which signs the message
  * @param chainId Id of the chain where the contarct is deployed to
@@ -718,6 +877,22 @@ function signReject(privateKey: string, chainId: string, contract_name: string, 
  * @returns
  */
 function signFinalize(privateKey: string, chainId: string, contract_name: string, to: string, id: string, sigtime: string) {
+  const raw = `${chainId} ${contract_name} finalize ${to} ${id} ${sigtime}`
+  return { raw: raw, sig: ecc.sign(raw, privateKey) }
+}
+
+/**
+ * Get the signature to invalidate a payment
+ *
+ * @param privateKey Key which signs the message
+ * @param chainId Id of the chain where the contarct is deployed to
+ * @param contract_name Contract name
+ * @param to Account name or public key in hex format
+ * @param id Payment id
+ * @param sigtime Current unix time of the signing
+ * @returns
+ */
+function signInvalidate(privateKey: string, chainId: string, contract_name: string, to: string, id: string, sigtime: string) {
   const raw = `${chainId} ${contract_name} finalize ${to} ${id} ${sigtime}`
   return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
