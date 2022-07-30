@@ -419,7 +419,15 @@ public:
             }
             else if (parameter.size() > 0)
             {
-                p.from = parameter;
+                if (parameter.size() > 3 && parameter[0] == 'P' && parameter[1] == 'A' && parameter[2] == 'Y')
+                {
+                    p.actionType = ActionType::PAY;
+                    p.from = parameter.substr(3);
+                }
+                else
+                {
+                    p.from = parameter;
+                }
                 p.hasFrom = true;
             }
             break;
@@ -467,7 +475,7 @@ public:
             p.hasRecipient = true;
             break;
         case 8:
-            // recipient public key
+            // Recipient public key
             p.recipientPublicKey = Conversion::String_to_public_key(parameter);
             p.hasRecipientPublicKey = true;
             break;

@@ -454,6 +454,13 @@ public:
     static uint64_t nextKeyIndex(const name& self, const uint64_t to_scope_key);
 
     /**
+     * @brief Check if time is already rejected, finalized or expired
+     *
+     * @param time Time stamp of a payment table
+     */
+    static void checkTime(uint32_t time);
+
+    /**
      * @brief Reject a payment to the sender where the recipient is an account name.
      * If the sender is an account name it will get the payment directly.
      * If the sender is a public key the payment will be marked as rejected by setting the time parameter to 0.
@@ -486,7 +493,7 @@ public:
         }
         else
         {
-            check(itr->time != 0, "The payment has already been rejected.");
+            check(itr->time != 0, "The payment has already been rejected.");    // Check only rejected, all other possibilities should still be available
 
             // Set the payment open to pay back
             _pay2name.modify(itr, get_self(), [&](auto& p) {
@@ -538,7 +545,7 @@ public:
         }
         else
         {
-            check(itr->time != 0, "The payment has already been rejected.");
+            check(itr->time != 0, "The payment has already been rejected.");    // Check only rejected, all other possibilities should still be available
 
             // Set the payment open to pay back
             _pay2key.modify(itr, get_self(), [&](auto& p) {
@@ -573,7 +580,7 @@ public:
 
             // Check the parameters
             check(itr != _pay2name.end(), "Entry does not exist.");
-            check(eosio::current_time_point().sec_since_epoch() <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->from.size() == 8, "Wrong sender");
 
             // Check authority of the sender
@@ -602,7 +609,7 @@ public:
             // Check the parmeters
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->to == vec_to, "Wrong public key."); // Check the recipient
-            check(eosio::current_time_point().sec_since_epoch() <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->from.size() == 8, "Wrong sender");
 
             // Check authority of the sender
@@ -644,8 +651,7 @@ public:
             // Check the parameters
             check(itr != _pay2name.end(), "Entry does not exist.");
             check(itr->from.size() == 34, "Sender is not a public key.");
-            check(itr->time != 0, "Payment has already been rejected.");
-            check(currentTime <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
 
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
@@ -673,8 +679,7 @@ public:
             // Check the parameters
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->from.size() == 34, "Wrong sender.");
-            check(itr->time != 0, "Payment has already been rejected.");
-            check(currentTime <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->to == vec_to, "Wrong public key.");
 
             // Get public key of the sender
@@ -712,7 +717,7 @@ public:
 
             // Check the parameters. Note: It is nonesense to check the parameter "to" and "time != 0" here
             check(itr != _pay2name.end(), "Entry does not exist.");
-            check(eosio::current_time_point().sec_since_epoch() <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->from.size() == 8, "Wrong sender");
 
             // Check authority of the sender
@@ -741,7 +746,7 @@ public:
             // Check the parmeters
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->to == vec_to, "Wrong public key."); // Check the recipient
-            check(eosio::current_time_point().sec_since_epoch() <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->from.size() == 8, "Wrong sender");
 
             // Check authority of the sender
@@ -782,8 +787,7 @@ public:
             // Check the parameters
             check(itr != _pay2name.end(), "Entry does not exist.");
             check(itr->from.size() == 34, "Sender is not a public key.");
-            check(itr->time != 0, "Payment has already been rejected.");
-            check(currentTime <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
 
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
@@ -811,8 +815,7 @@ public:
             // Check the parameters
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->from.size() == 34, "Wrong sender.");
-            check(itr->time != 0, "Payment has already been rejected.");
-            check(currentTime <= itr->time, "Time limit is already expired.");
+            checkTime(itr->time);
             check(itr->to == vec_to, "Wrong public key.");
 
             // Get public key of the sender

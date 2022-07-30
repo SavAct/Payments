@@ -582,3 +582,11 @@ uint64_t savactsavpay::nextKeyIndex(const name& self, const uint64_t to_scope_ke
         return index;
     }
 }
+
+void savactsavpay::checkTime(uint32_t time) {
+    if (eosio::current_time_point().sec_since_epoch() > time) {
+        check(time != 0, "Payment is already rejected.");
+        check(time != 1, "Payment is already finalized.");
+        check(false, "Time limit is already expired.");
+    }
+}
