@@ -615,8 +615,8 @@ public:
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
 
-            // Get released RAM amount
-            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
+            // // Get released RAM amount
+            // auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient.
             _pay2key.modify(itr, get_self(), [&](auto& p) {
@@ -685,8 +685,8 @@ public:
             // Get public key of the sender
             pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
-            // Get released RAM amount
-            auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
+            // // Get released RAM amount
+            // auto freeRAM = getRamForPayment(get_self(), false, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Set the payment as finalized to pay out the recipient
             _pay2key.modify(itr, get_self(), [&](auto& p) {
@@ -889,7 +889,7 @@ public:
             auto itr = _pay2key.find(id);
 
             check(itr->time == 0, "Payment is not rejected.");
-            check(itr->from.size() == 8, "Sender is not an account.");
+            check(itr->from.size() == 8, "Origin payment sender is not an account.");
 
             // Get from name
             const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
@@ -916,7 +916,7 @@ public:
      * @param sig Signature of "{Chain id} {Name of this contract} payoff {name or public key of the origin recipient} {name of the recipient} {id} {sigtime}"
      */
     ACTION payoffsig(const string& to, const uint64_t id, const name& recipient, const uint32_t sigtime, const signature& sig) {
-        check(!is_account(recipient), "Account does not exist.");
+        check(is_account(recipient), "Account does not exist.");
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
 
         if (to.size() <= 13) {
