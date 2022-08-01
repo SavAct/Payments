@@ -170,7 +170,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
             ram_payer = get_self();
 
             // Buy needed RAM and reduce the fund amount accordingly
-            fund.amount -= EosioHandler::calcRamBytes(neededRAM);
+            fund.amount -= EosioHandler::calcRamPrice(neededRAM);
             EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
 
         }
@@ -224,7 +224,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         }
 
         // Buy needed RAM and reduce the fund amount accordingly
-        fund.amount -= EosioHandler::calcRamBytes(neededRAM);
+        fund.amount -= EosioHandler::calcRamPrice(neededRAM);
         EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
 
         // Add payment to table

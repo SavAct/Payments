@@ -218,7 +218,7 @@ int64_t EosioHandler::calcRamPrice(const int32_t bytes) {
     const int64_t ram_reserve = itr->base.balance.amount;
     const int64_t eos_reserve = itr->quote.balance.amount;
     const int64_t cost = get_bancor_input(ram_reserve, eos_reserve, bytes);
-    return cost / double(0.995); // plus fee
+    return (cost / double(0.995)) + 1;    // 0.5% + min amount as fee
 }
 
 int64_t EosioHandler::calcRamBytes(const int32_t amount) {
@@ -227,7 +227,7 @@ int64_t EosioHandler::calcRamBytes(const int32_t amount) {
     const int64_t ram_reserve = itr->base.balance.amount;
     const int64_t eos_reserve = itr->quote.balance.amount;
     const int64_t bytes = get_bancor_input(eos_reserve, ram_reserve, amount);
-    return bytes * double(0.995);
+    return (bytes * double(0.995));
 }
 
 int64_t EosioHandler::calcSellRamPrice(const int32_t bytes) {
@@ -236,7 +236,8 @@ int64_t EosioHandler::calcSellRamPrice(const int32_t bytes) {
     const int64_t ram_reserve = itr->base.balance.amount;
     const int64_t eos_reserve = itr->quote.balance.amount;
     const int64_t fund = get_bancor_output(ram_reserve, eos_reserve, bytes);
-    return fund * double(0.995);
+    double price = (fund * double(0.995)) - 1;    // 0.5% + min amount as fee
+    return price < 0 ? 0 : price;
 }
 
 void EosioHandler::buyrambytes(const name& payer, const name& receiver, const int32_t bytes) {

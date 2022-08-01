@@ -933,7 +933,7 @@ public:
 
             // Check the signature with the sender of the payment
             string checkStr;
-            checkStr.append(chainIDAndContractName).append(" payoff ").append(to).append(recipient.to_string()).append(" ").append(std::to_string(id)).append(" ").append(std::to_string(sigtime));
+            checkStr.append(chainIDAndContractName).append(" payoff ").append(to).append(" ").append(recipient.to_string()).append(" ").append(std::to_string(id)).append(" ").append(std::to_string(sigtime));
             assert_recover_key(sha256(&checkStr[0], checkStr.size()), sig, Conversion::GetPubKeyFromVector(itr->from));
 
             // Get released RAM amount
@@ -1024,7 +1024,7 @@ public:
      */
     static void sendRamAndSysFundDirect(const name& self, const uint32_t ramBytes, const name& recipient, asset system_token_fund, const string& memo) {
         if (ramBytes > 0) {
-            system_token_fund.amount += EosioHandler::calcRamPrice(ramBytes);
+            system_token_fund.amount += EosioHandler::calcSellRamPrice(ramBytes);
             EosioHandler::sellram(self, ramBytes);
         }
         if (system_token_fund.amount > 0) {
@@ -1162,7 +1162,7 @@ public:
 
         // Check the signature with the recipient of the payment
         string checkStr;
-        checkStr.append(chainIDAndContractName).append(" payoff all ").append(token_contract.to_string()).append(" ").append(token_symbol.code().to_string()).append(" ").append(recipient.to_string()).append(" ").append(memo).append(" ").append(std::to_string(sigtime)).append(memo);
+        checkStr.append(chainIDAndContractName).append(" payoff all ").append(token_contract.to_string()).append(" ").append(token_symbol.code().to_string()).append(" ").append(recipient.to_string()).append(" ").append(memo).append(" ").append(std::to_string(sigtime));
         const checksum256 digest = sha256(&checkStr[0], checkStr.size());
         assert_recover_key(digest, sig, sign_pub_key); // breaks if the signature doesn't match
 
