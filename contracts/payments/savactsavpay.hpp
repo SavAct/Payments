@@ -853,7 +853,7 @@ public:
 
             if (itr->time == 0) {
                 // Check if from is an account name
-                check(itr->from.size() == 8, "Payment is rejected, but sender is not a name.");
+                check(itr->from.size() == 8, "Payment is rejected, but sender is not an account name.");
 
                 // Get from name and set it as recipient of the payment
                 const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
@@ -889,7 +889,7 @@ public:
             auto itr = _pay2key.find(id);
 
             check(itr->time == 0, "Payment is not rejected.");
-            check(itr->from.size() == 8, "Origin payment sender is not an account.");
+            check(itr->from.size() == 8, "Payment is rejected, but sender is not an account name.");
 
             // Get from name
             const uint64_t* nameValue = (const uint64_t*)(itr->from.data());
@@ -1252,7 +1252,6 @@ public:
             return;
         check(fund.amount > 0, "Zero amount.");
         check(memo.length() > 0, "Empty memo."); // Accept only payments with a memo
-
         auto p = Conversion::GetParams(memo); // Get all parameters of the memo
         switch (p.actionType) {
         case Conversion::ActionType::PAY:

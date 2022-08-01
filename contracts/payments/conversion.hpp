@@ -397,7 +397,7 @@ public:
                     p.actionType = ActionType::PAY;
                     break;
                 case 'R':
-                    p.actionType = ActionType::RAM;
+                    p.actionType = parameter[1] == 'A' ? ActionType::RAM : ActionType::REJ;
                     break;
                 case 'F':
                     p.actionType = ActionType::FIN;

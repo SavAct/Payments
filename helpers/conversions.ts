@@ -17,7 +17,7 @@ export class Asset {
     if (dotPos == withZeros.length) {
       return `${String(Math.round(this.amount))} ${this.symbol.name}`
     } else if (dotPos == 0) {
-      return `0.${String(Math.round(this.amount))} ${this.symbol.name}`
+      return `0.${withZeros} ${this.symbol.name}`
     } else {
       return `${withZeros.substring(0, dotPos)}.${withZeros.substring(dotPos)} ${this.symbol.name}`
     }
