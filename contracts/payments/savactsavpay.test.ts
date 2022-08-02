@@ -847,12 +847,12 @@ describe('SavPay', () => {
       recipient2PubK1 = recipient2PriK1.getPublicKey()
       recipient2Split = splitPubKeyToScopeAndTableVec(recipient2PubK1)
 
-      // GEt id as base58 value
+      // Get id as base58 value
       id1_Base58 = base58.encode(numberTouInt64(BigInt(1)).reverse())
       id2_Base58 = base58.encode(numberTouInt64(BigInt(2)).reverse())
       id3_Base58 = base58.encode(numberTouInt64(BigInt(3)).reverse())
     })
-    context('S/5 on reached time', async () => {
+    context('S/7 on reached time', async () => {
       let sig: string
       let currentTime: number
       let nameTableAmount: number
@@ -965,9 +965,9 @@ describe('SavPay', () => {
         await assertEOSErrorIncludesMessage(contract.payoff(pubKey1K1.toString(), 1, { from: user[3] }), 'Payment is not rejected.')
       })
       it('should succeed from key to key with "OFF" parameter 3', async () => {
-        const paraAsset = new Asset(1000, sys_token.symbol)
+        const paraAsset = new Asset(1, sys_token.symbol)
+        const sig = signPayOff(recipient2PriK1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), user[2].name, '1', currentTime.toString()).sig
         await check.ramTrace(() => {
-          const sig = signPayOff(recipient2PriK1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), user[2].name, '1', currentTime.toString()).sig
           return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `OFF@${recipient2PubK1.toString()}#${id1_Base58}!${currentTimeBase58}~${sig}+${user[2].name}`, { from: user[0] })
         })
         user0Asset.amount -= paraAsset.amount
@@ -981,8 +981,8 @@ describe('SavPay', () => {
       })
       it('should succeed finalize by "FIN" parameter 5', async () => {
         const paraAsset = new Asset(1000, sys_token.symbol)
+        const sig_fin = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '2', currentTime.toString()).sig
         await check.ramTrace(() => {
-          const sig_fin = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '2', currentTime.toString()).sig
           return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `FIN@${user[2].name}#${id2_Base58}!${currentTimeBase58}~${sig_fin}`, { from: user[0] })
         })
         user0Asset.amount -= paraAsset.amount
@@ -1091,8 +1091,201 @@ describe('SavPay', () => {
   })
 
   // Invalidate
-  context('?/? invalidate payment', async () => {
-    //TODO: use "INV" parameter as well
+  // Pay off
+  context('invalidate payment', async () => {
+    let currentTime: number
+    let currentTimeBase58: string
+    let minAsset: Asset
+    let recipient2PriK1: PrivateKey
+    let recipient2PubK1: PublicKey
+    let recipient2Split: { scope: bigint; tableVec: string }
+    let id6_Base58: string
+    before(async () => {
+      currentTime = Math.round(Date.now() / 1000)
+      currentTimeBase58 = base58.encode(numberTouInt32(currentTime).reverse())
+      minAsset = new Asset(1, sys_token.symbol)
+
+      // Get recipient2 keys
+      recipient2PriK1 = PrivateKey.fromString(user[2].privateKey as string)
+      recipient2PubK1 = recipient2PriK1.getPublicKey()
+      recipient2Split = splitPubKeyToScopeAndTableVec(recipient2PubK1)
+
+      // Get id as base58 value
+      id6_Base58 = base58.encode(numberTouInt64(BigInt(6)).reverse())
+      ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
+    })
+    context('V/4 from name to name', async () => {
+      it('should succeed 1', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[1].name}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
+        })
+        user0Asset.amount -= sendAsset.amount
+      })
+      it('should fail to invalidate without sender auth 2', async () => {
+        await assertMissingAuthority(contract.invalidate(user[2].name, 4, { from: user[2] }))
+      })
+      it('should succeed invalidation payment 3', async () => {
+        await check.ramTrace(() => {
+          return contract.invalidate(user[2].name, 4, { from: user[1] })
+        })
+      })
+      it('should update tables 4', async () => {
+        await check.checkPayment2Name_NotExist(user[2].name, 4)
+        const [newContractAsset, newNirvanaAsset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[1], user[2]], sys_token)
+
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta)).lessThan(10, 'Wrong contract balance')
+
+        const nirvanaDelta = newNirvanaAsset.amount - nirvanaAsset.amount
+        chai.expect(Math.abs(sendAsset.amount - nirvanaDelta)).lessThan(10, 'Nirvana got wrong amount')
+        chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
+        chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
+
+        contractAsset.amount = newContractAsset.amount
+        nirvanaAsset.amount = newNirvanaAsset.amount
+      })
+    })
+    context('W/9 key to name', async () => {
+      it('should succeed payment 1', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
+        })
+        user0Asset.amount -= sendAsset.amount
+      })
+      it('should fail to invalidate without sign action 2', async () => {
+        await assertEOSErrorIncludesMessage(contract.invalidate(user[2].name, 5, { from: user[2] }), 'Wrong sender.')
+      })
+      it('should fail to invalidate with wrong sign 3', async () => {
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, 'wrong', currentTime.toString()).sig
+        await shouldFail(contract.invalisig(user[2].name, 5, currentTime, sig, { from: user[1] }))
+      })
+      it('should succeed invalidation payment 4', async () => {
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '5', currentTime.toString()).sig
+        await check.ramTrace(() => {
+          return contract.invalisig(user[2].name, 5, currentTime, sig, { from: user[1] })
+        })
+      })
+      it('should update tables 5', async () => {
+        await check.checkPayment2Name_NotExist(user[2].name, 5)
+        const [newContractAsset, newNirvanaAsset, newuser2Asset] = await getBalances([contract.account, nirvana, user[2]], sys_token)
+
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta)).lessThan(10, 'Wrong contract balance')
+
+        const nirvanaDelta = newNirvanaAsset.amount - nirvanaAsset.amount
+        chai.expect(Math.abs(sendAsset.amount - nirvanaDelta)).lessThan(10, 'Nirvana got wrong amount')
+        chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
+
+        contractAsset.amount = newContractAsset.amount
+        nirvanaAsset.amount = newNirvanaAsset.amount
+      })
+
+      // Send and invalidate payment from key to name with "INV" parameter
+      it('should succeed payment 6', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
+        })
+        user0Asset.amount -= sendAsset.amount
+      })
+      it('should fail to tinvalidate with wrong sign 7', async () => {
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, 'wrong', currentTime.toString()).sig
+        await shouldFail(contract.invalisig(user[2].name, 6, currentTime, sig, { from: user[1] }))
+      })
+      it('should succeed invalidation with "INV" parameter 8', async () => {
+        const paraAsset = new Asset(1, sys_token.symbol)
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '6', currentTime.toString()).sig
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `INV@${user[2].name}#${id6_Base58}!${currentTimeBase58}~${sig}`, { from: user[0] })
+          // return contract.invalisig(user[2].name, 6, currentTime, sig, { from: user[1] })
+        })
+        user0Asset.amount -= paraAsset.amount
+        contractAsset.amount += paraAsset.amount
+      })
+      it('should update tables 9', async () => {
+        await check.checkPayment2Name_NotExist(user[2].name, 6)
+        const [newContractAsset, newNirvanaAsset, newuser2Asset] = await getBalances([contract.account, nirvana, user[2]], sys_token)
+
+        const contractDelta = newContractAsset.amount - contractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta)).lessThan(10, 'Wrong contract balance')
+
+        const nirvanaDelta = newNirvanaAsset.amount - nirvanaAsset.amount
+        chai.expect(Math.abs(sendAsset.amount - nirvanaDelta)).lessThan(10, 'Nirvana got wrong amount')
+        chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
+
+        contractAsset.amount = newContractAsset.amount
+        nirvanaAsset.amount = newNirvanaAsset.amount
+      })
+    })
+    context('X/4 name to key', async () => {
+      // Send and invalidate payment from name to key
+      it('should succeed from name to key payment 1', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[1].name}@${recipient2PubK1}!${inOneDayBs58}:user1 to K1_of_Recipient2`, { from: user[0] })
+        })
+        user0Asset.amount -= sendAsset.amount
+      })
+      it('should fail to invalidate name to key payment without sender auth 2', async () => {
+        await assertMissingAuthority(contract.invalidate(recipient2PubK1.toString(), 4, { from: user[2] }))
+      })
+      it('should succeed invalidation from name to key payment 3', async () => {
+        await check.ramTrace(() => {
+          return contract.invalidate(recipient2PubK1.toString(), 4, { from: user[1] })
+        })
+      })
+      it('should update tables 4', async () => {
+        await check.checkPayment2Name_NotExist(recipient2Split.scope.toString(), 4)
+        const [newContractAsset, newNirvanaAsset, newuser1Asset] = await getBalances([contract.account, nirvana, user[1]], sys_token)
+
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta)).lessThan(10, 'Wrong contract balance')
+
+        const nirvanaDelta = newNirvanaAsset.amount - nirvanaAsset.amount
+        chai.expect(Math.abs(sendAsset.amount - nirvanaDelta)).lessThan(10, 'Nirvana got wrong amount')
+        chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
+
+        contractAsset.amount = newContractAsset.amount
+        nirvanaAsset.amount = newNirvanaAsset.amount
+      })
+    })
+    context('Y/5 key to key', async () => {
+      it('should succeed from key to key payment 1', async () => {
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] })
+        })
+        user0Asset.amount -= sendAsset.amount
+      })
+      it('should fail to invalidate key to key payment without sign action 2', async () => {
+        await assertEOSErrorIncludesMessage(contract.invalidate(recipient2PubK1.toString(), 5, { from: user[2] }), 'Wrong sender.')
+      })
+      it('should fail to invalidate key to key payment with wrong sign 3', async () => {
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), 'wrong', currentTime.toString()).sig
+        await shouldFail(contract.invalisig(recipient2PubK1.toString(), 5, currentTime, sig, { from: user[1] }))
+      })
+      it('should succeed invalidation from key to key payment 4', async () => {
+        const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '5', currentTime.toString()).sig
+        await check.ramTrace(() => {
+          return contract.invalisig(recipient2PubK1.toString(), 5, currentTime, sig, { from: user[1] })
+        })
+      })
+      it('should update tables 5', async () => {
+        await check.checkPayment2Name_NotExist(recipient2Split.scope.toString(), 5)
+        const [newContractAsset, newNirvanaAsset] = await getBalances([contract.account, nirvana], sys_token)
+
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta)).lessThan(10, 'Wrong contract balance')
+
+        const nirvanaDelta = newNirvanaAsset.amount - nirvanaAsset.amount
+        chai.expect(Math.abs(sendAsset.amount - nirvanaDelta)).lessThan(10, 'Nirvana got wrong amount')
+
+        contractAsset.amount = newContractAsset.amount
+        nirvanaAsset.amount = newNirvanaAsset.amount
+      })
+    })
   })
 
   // TODO: Pay off all
@@ -1148,7 +1341,7 @@ function signFinalize(privateKey: string, chainId: string, contract_name: string
  * @returns
  */
 function signInvalidate(privateKey: string, chainId: string, contract_name: string, to: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} finalize ${to} ${id} ${sigtime}`
+  const raw = `${chainId} ${contract_name} invalidate ${to} ${id} ${sigtime}`
   return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
 

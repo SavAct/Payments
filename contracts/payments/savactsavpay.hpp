@@ -581,7 +581,7 @@ public:
             // Check the parameters
             check(itr != _pay2name.end(), "Entry does not exist.");
             checkTime(itr->time);
-            check(itr->from.size() == 8, "Wrong sender");
+            check(itr->from.size() == 8, "Wrong sender.");
 
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
@@ -610,7 +610,7 @@ public:
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->to == vec_to, "Wrong public key."); // Check the recipient
             checkTime(itr->time);
-            check(itr->from.size() == 8, "Wrong sender");
+            check(itr->from.size() == 8, "Wrong sender.");
 
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
@@ -718,7 +718,7 @@ public:
             // Check the parameters. Note: It is nonesense to check the parameter "to" and "time != 0" here
             check(itr != _pay2name.end(), "Entry does not exist.");
             checkTime(itr->time);
-            check(itr->from.size() == 8, "Wrong sender");
+            check(itr->from.size() == 8, "Wrong sender.");
 
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
@@ -747,7 +747,7 @@ public:
             check(itr != _pay2key.end(), "Entry does not exist.");
             check(itr->to == vec_to, "Wrong public key."); // Check the recipient
             checkTime(itr->time);
-            check(itr->from.size() == 8, "Wrong sender");
+            check(itr->from.size() == 8, "Wrong sender.");
 
             // Check authority of the sender
             require_auth(Conversion::vectorToName(itr->from));
@@ -1291,7 +1291,7 @@ public:
             check(p.hasTime, "Missing signature time.");
             check(!p.relativeTime, "Need an absolute time stamp.");
             check(p.hasSignature, "Missing signature.");
-            finalizesig(p.to, p.id, p.time, p.sig);
+            invalisig(p.to, p.id, p.time, p.sig);
             break;
         case Conversion::ActionType::OFF:
             check(p.hasId, "Missing id.");
