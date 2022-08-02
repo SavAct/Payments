@@ -839,12 +839,11 @@ public:
 
     /**
      * @brief Pay off an account name if the time limit is over or the payment is marked as rejected
-     *
+     * Note: Everyone can execute this transaction
      * @param to Name or public key of the origin recipient as string
      * @param id Id of the payment
      */
     ACTION payoff(const string& to, const uint64_t id) {
-        // Note: Everyone can execute this transaction
         if (to.size() <= 13) {
             name to_name(to);
 
@@ -917,7 +916,8 @@ public:
      */
     ACTION payoffsig(const string& to, const uint64_t id, const name& recipient, const uint32_t sigtime, const signature& sig) {
         check(is_account(recipient), "Account does not exist.");
-        check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
+        const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(currentTime - sigtime < expirationTime, "The transaction is expired.");
 
         if (to.size() <= 13) {
             // Recipient is a name
@@ -967,7 +967,7 @@ public:
             else
             {
                 // Pay off recipient
-                check(sigtime > itr->time, "Time limit is not over.");
+                check(currentTime > itr->time, "Time limit is not over.");
                 sign_pub_key = to_key;
             }
 
@@ -1069,27 +1069,28 @@ public:
      * Note: Because eos accounts cannot be deleted there is no further parameters for signature checking needed
      * @param user_pub_key Public key of the new account
      * @param user_name Name of the new account already exists
-     * @param sign_pub_key Public key of the origin recipient which is used for the signature as well
+     * @param to Public key of the origin recipient which is used for the signature as well
      * @param sigtime Time stamp of the signature
      * @param sig Signature of "{Chain id} {Name of this contract} payoff all {public key in hex format of the new account} {name of the new account} {sigtime}"
      */
-    ACTION payoffnewacc(const public_key& user_pub_key, const name& user_name, const public_key& sign_pub_key, const uint32_t sigtime, const signature& sig) {
+    ACTION payoffnewacc(const public_key& user_pub_key, const name& user_name, const public_key& to, const uint32_t sigtime, const signature& sig) {
         check(!is_account(user_name), "Account already exists.");
-        check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
+        const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(currentTime - sigtime < expirationTime, "The transaction is expired.");
 
         uint64_t scope;
-        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(sign_pub_key, scope);
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to, scope);
         pay2key_table _pay2key(get_self(), scope);
 
         // Check the signature with the recipient of the payment
         string checkStr;
         checkStr.append(chainIDAndContractName).append(" payoff all ").append(Conversion::vec_to_hex(Conversion::GetVectorFromPubKey(user_pub_key))).append(" ").append(user_name.to_string()).append(" ").append(std::to_string(sigtime));
         const checksum256 digest = sha256(&checkStr[0], checkStr.size());
-        assert_recover_key(digest, sig, sign_pub_key); // breaks if the signature doesn't match
+        assert_recover_key(digest, sig, to); // breaks if the signature doesn't match
 
         // Get and remove all available system token balances for this key and get the free RAM
         asset fund(0, System_Symbol);
-        int32_t freeRAM = getAndRemovesExpiredBalancesOfKey(sign_pub_key, System_Token_Contract, fund, sigtime, get_self());
+        int32_t freeRAM = getAndRemovesExpiredBalancesOfKey(to, System_Token_Contract, fund, currentTime, get_self());
 
         // RAM for recieving the first system token
         uint32_t ram_open_system_token;
@@ -1147,28 +1148,25 @@ public:
      * @param token_symbol Symbol of the token
      * @param recipient Recipient of the payment
      * @param memo Memo on pay off
-     * @param sign_pub_key Public key of the origin recipient which is used for the signature as well
+     * @param to Public key of the origin recipient which is used for the signature as well
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} payoff all {token contract name} {token symbol} {name of the recipient} {memo} {sigtime}"
+     * @param sig Signature of "{Chain id} {Name of this contract} payoff all {token contract name} {token symbol precision,name} {name of the recipient} {memo} {sigtime}"
      */
-    ACTION payoffsigall(const name& token_contract, const symbol& token_symbol, const name& recipient, const string& memo, const public_key& sign_pub_key, const uint32_t sigtime, const signature& sig) {
+    ACTION payoffallsig(const name& token_contract, const symbol& token_symbol, const name& recipient, const string& memo, const public_key& to, const uint32_t sigtime, const signature& sig) {
         check(is_account(recipient), "Account does not exist.");
-        check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
+        const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(currentTime - sigtime < expirationTime, "The transaction is expired.");
 
-        // Get table
-        uint64_t scope;
-        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(sign_pub_key, scope);
-        pay2key_table _pay2key(get_self(), scope);
 
         // Check the signature with the recipient of the payment
         string checkStr;
-        checkStr.append(chainIDAndContractName).append(" payoff all ").append(token_contract.to_string()).append(" ").append(token_symbol.code().to_string()).append(" ").append(recipient.to_string()).append(" ").append(memo).append(" ").append(std::to_string(sigtime));
+        checkStr.append(chainIDAndContractName).append(" payoff all ").append(token_contract.to_string()).append(" ").append(std::to_string(token_symbol.precision())).append(",").append(token_symbol.code().to_string()).append(" ").append(recipient.to_string()).append(" ").append(memo).append(" ").append(std::to_string(sigtime));
         const checksum256 digest = sha256(&checkStr[0], checkStr.size());
-        assert_recover_key(digest, sig, sign_pub_key); // breaks if the signature doesn't match
+        assert_recover_key(digest, sig, to); // breaks if the signature doesn't match
 
         // Get and removes all available token balances for this key
         asset fund(0, token_symbol);
-        int32_t freeRAM = getAndRemovesExpiredBalancesOfKey(sign_pub_key, token_contract, fund, sigtime, get_self());
+        int32_t freeRAM = getAndRemovesExpiredBalancesOfKey(to, token_contract, fund, currentTime, get_self());
 
         // Send amount to new account
         freeRAM -= openTokenRowAndGetRAM(token_contract, recipient, token_symbol, get_self());
@@ -1307,7 +1305,7 @@ public:
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
             check(p.hasRecipientPublicKey, "Missing recipient public key.");
-            payoffsigall(token_contract, fund.symbol, p.recipient, p.memo, p.recipientPublicKey, p.time, p.sig);
+            payoffallsig(token_contract, fund.symbol, p.recipient, p.memo, p.recipientPublicKey, p.time, p.sig);
             break;
         case Conversion::ActionType::ACC:
             check(p.hasTime, "Missing signature time time.");

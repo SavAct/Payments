@@ -333,6 +333,7 @@ vector<char> savactsavpay::getSenderVecFrom(const string& user) {
     if (user.size() == 8) {
         // Sender is a name
         name _name(user);
+        check(is_account(_name), "Sender does not exist.");
         return getSenderVecFrom(_name);
     }
     else
@@ -443,7 +444,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
     auto itr = _pay2key.begin();
     bool foundEntries = false;
     while (itr != _pay2key.end()) {
-        if (std::equal(to_vec.begin(), to_vec.end(), itr->to.begin()) && itr->fund.symbol == fund.symbol && itr->time < currenttime && itr->contract == token_contract) {
+        if (std::equal(to_vec.begin(), to_vec.end(), itr->to.begin()) && itr->fund.symbol == fund.symbol && itr->time != 0 && itr->time < currenttime && itr->contract == token_contract) {
             fund += itr->fund;
             itr = _pay2key.erase(itr);
             if (itr->from.size() == 8) {
@@ -476,7 +477,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const n
     auto itr = _pay2name.begin();
     bool foundEntries = false;
     while (itr != _pay2name.end()) {
-        if (itr->fund.symbol == fund.symbol && itr->time < currenttime && itr->contract == token_contract) {
+        if (itr->fund.symbol == fund.symbol && itr->time != 0 && itr->time < currenttime && itr->contract == token_contract) {
             int tempFree;
             if (itr->from.size() == 8) {
                 tempFree = getRamForPayment(self, true, true, token_contract, fund.symbol, itr->memo);
