@@ -177,63 +177,95 @@ Action payoff
 
 ### Payoff finished "name to key" and "key to name" payment
 
-| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                               |
-| :---------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `to`        | Origin recipient public key                                                                                                                                |
-| `id`        | Primary key of `paytokey` table entry                                                                                                                      |
-| `recipient` | Account name of the final recipient                                                                                                                        |
-| `sigtime`   | Unix time stamp of the signature                                                                                                                           |
-| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key} {account name of recipient} {id} {sigtime}" by origin recipient `to` |
-|             |                                                                                                                                                            |
-| Result      | Origin payment sender `to` receives the payment                                                                                                            |
+| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                                 |
+| :---------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`        | Origin recipient public key                                                                                                                                  |
+| `id`        | Primary key of `paytokey` table entry                                                                                                                        |
+| `recipient` | Account name of the final recipient                                                                                                                          |
+| `sigtime`   | Unix time stamp of the signature                                                                                                                             |
+| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key\*} {account name of recipient} {id} {sigtime}" by origin recipient `to` |
+|             |                                                                                                                                                              |
+| Result      | Origin payment sender `to` receives the payment                                                                                                              |
 
 ### Payoff invalidated "key to name"
 
-| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                                      |
-| :---------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `to`        | Origin recipient account name                                                                                                                                     |
-| `id`        | Primary key of `paytokey` table entry                                                                                                                             |
-| `recipient` | Account name of the final recipient                                                                                                                               |
-| `sigtime`   | Unix time stamp of the signature                                                                                                                                  |
-| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key} {account name of recipient} {id} {sigtime}" by origin payment sender `from` |
-|             |                                                                                                                                                                   |
-| Result      | Origin recipient `from` receives the payment                                                                                                                      |
+| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                                        |
+| :---------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `to`        | Origin recipient account name                                                                                                                                       |
+| `id`        | Primary key of `paytokey` table entry                                                                                                                               |
+| `recipient` | Account name of the final recipient                                                                                                                                 |
+| `sigtime`   | Unix time stamp of the signature                                                                                                                                    |
+| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key\*} {account name of recipient} {id} {sigtime}" by origin payment sender `from` |
+|             |                                                                                                                                                                     |
+| Result      | Origin recipient `from` receives the payment                                                                                                                        |
 
 ### Payoff invalidated "key to key"
 
-| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                                      |
-| :---------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `to`        | Origin recipient public key                                                                                                                                       |
-| `id`        | Primary key of `paytokey` table entry                                                                                                                             |
-| `recipient` | Account name of the final recipient                                                                                                                               |
-| `sigtime`   | Unix time stamp of the signature                                                                                                                                  |
-| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key} {account name of recipient} {id} {sigtime}" by origin payment sender `from` |
-|             |                                                                                                                                                                   |
-| Result      | Origin recipient `from` receives the payment                                                                                                                      |
+| Action      | `payoffsig(to, id, recipient, sigtime, sig)`                                                                                                                        |
+| :---------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `to`        | Origin recipient public key                                                                                                                                         |
+| `id`        | Primary key of `paytokey` table entry                                                                                                                               |
+| `recipient` | Account name of the final recipient                                                                                                                                 |
+| `sigtime`   | Unix time stamp of the signature                                                                                                                                    |
+| `sig`       | Signature of "{chain id} {name of this contract} payoff {origin recipient public key\*} {account name of recipient} {id} {sigtime}" by origin payment sender `from` |
+|             |                                                                                                                                                                     |
+| Result      | Origin recipient `from` receives the payment                                                                                                                        |
 
-- The public key in string format with prefix (EOS or PUB*K1*). It has to be in the same format as transmitted by the to value.
+\* The public key in string format with prefix (EOS or PUB*K1*). It has to be in the same format as transmitted by the to value.
 
-## Payoff all completed payments of a user
+## Payoff all
 
-Action payoffall
+Payoff all finished and expired payments of a specific token which regards to an account name recipient.
 
-## Payoff all completed payments of a public key
+| Action           | `payoffall(to, token_contract, token_symbol, memo)`              |
+| :--------------- | :--------------------------------------------------------------- |
+| `to`             | Origin recipient account name                                    |
+| `token_contract` | Contract of the token, like eosio.token for EOS                  |
+| `token_symbol`   | Symbol type of the token "{precision},{symbol_name}"             |
+| `memo`           | String that is used as memo on the payment to the recipient      |
+|                  |                                                                  |
+| Result           | Origin recipient `to` receives all finished and expired payments |
 
-Action payoffsigall
+## Payoff all sig
 
-## Payoff all completed payments of a public key by creating an account
+Payoff all finished and expired payments of a specific token which regards to a public key recipient.
 
-Action payoffnewacc
+| Action           | `payoffallsig(to, token_contract, token_symbol, recipient, memo, sigtime, sig)`                                                                                                                |
+| :--------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`             | Origin recipient public key                                                                                                                                                                    |
+| `token_contract` | Contract of the token, like eosio.token for EOS                                                                                                                                                |
+| `token_symbol`   | Symbol type of the token "{precision},{symbol_name}"                                                                                                                                           |
+| `recipient`      | An existing account which should receive all payments                                                                                                                                          |
+| `memo`           | String that is used as memo on the payment to the recipient                                                                                                                                    |
+| `sigtime`        | Unix time stamp of the signature                                                                                                                                                               |
+| `sig`            | String that is used as memo on the payment to the recipient                                                                                                                                    |
+|                  |                                                                                                                                                                                                |
+| Result           | Signature of "{chain id} {name of this contract} payoff all {token contract name} {token symbol precision,name} {account name of recipient} {memo} {sigtime}" by origin payment recipient `to` |
+
+## Payoff new account
+
+Use all finished and expired payments of sytem tokens which regards to a public key recipient to create a new account and pay him off the remaining token amount.
+
+| Action         | `payoffnewacc(to, user_pub_key, user_name, sigtime, sig)`                                                                                                                           |
+| :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`           | Origin recipient public key                                                                                                                                                         |
+| `user_pub_key` | Public key of the new user account                                                                                                                                                  |
+| `user_name`    | Account name of the new user                                                                                                                                                        |
+| `sigtime`      | Unix time stamp of the signature                                                                                                                                                    |
+| `sig`          | String that is used as memo on the payment to the recipient                                                                                                                         |
+|                |                                                                                                                                                                                     |
+| Result         | Signature of "{chain id} {name of this contract} payoff new acc {public key in hex format of the new account} {name of the new account} {sigtime}" by origin payment recipient `to` |
 
 # Allowed token
 
 The contract account can add and remove tokens. But these tokens have to be implemented in the code with on_notify before:
 
 ```cpp
-    [[eosio::on_notify("mytokencontr::transfer")]]
-    void deposit(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, "mytokencontr"_n);
-    }
+[[eosio::on_notify("mytokencontr::transfer")]]
+void deposit(const name& from, const name& to, const asset& fund, const string& memo)
+{
+    customDeposit(from, to, fund, memo, "mytokencontr"_n);
+}
 
 ```
 
@@ -241,14 +273,13 @@ After the deployment of the contract the tokens can be activated with the `setto
 
 ## Add a token to accepted list
 
-Action settoken
-| Action | `settoken(tokenContract, tokenSymbol, openBytes)` |
+| Action          | `settoken(tokenContract, tokenSymbol, openBytes)`                                                                                                    |
 | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tokenContract` | Token contract account name |
-| `tokenSymbol` | Symbol of the token which cantains the symbol name and prescission number |
-| `openBytes` | Number of RAM bytes which are needed to open a token entry of a new user. For example the open action on the eosio.token contract consumes 240 bytes |
+| `tokenContract` | Token contract account name                                                                                                                          |
+| `tokenSymbol`   | Symbol of the token which cantains the symbol name and prescission number                                                                            |
+| `openBytes`     | Number of RAM bytes which are needed to open a token entry of a new user. For example the open action on the eosio.token contract consumes 240 bytes |
 
-## Remove a token from accepted token list.
+## Remove a token from accepted list
 
 | Action          | `removetoken(tokenContract, tokenSymbol)`                                 |
 | :-------------- | :------------------------------------------------------------------------ |
