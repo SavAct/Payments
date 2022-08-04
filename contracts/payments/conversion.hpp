@@ -375,6 +375,13 @@ public:
         public_key recipientPublicKey;
     };
 
+    /**
+     * @brief Assert wrong input
+     */
+    static void assertWrongInput() {
+        check(false, "Wrong input.");
+    }
+
     /** The signs to seperate the memo. The sequence of the chars are importend. */
     inline static const string parasigns = "@/!;:#~+&";
 
@@ -394,22 +401,58 @@ public:
                 switch (parameter[0])
                 {
                 case 'P':
-                    p.actionType = ActionType::PAY;
+                    if ((parameter[1] == 'A' && parameter[2] == 'Y') || (parameter[1] == 'U' && parameter[2] == 'B')) {
+                        p.actionType = ActionType::PAY;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 case 'R':
-                    p.actionType = parameter[1] == 'A' ? ActionType::RAM : ActionType::REJ;
+                    if (parameter[1] == 'A' && parameter[2] == 'M') {
+                        p.actionType = ActionType::RAM;
+                    }
+                    else if (parameter[1] == 'E' && parameter[2] == 'J') {
+                        p.actionType = ActionType::REJ;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 case 'F':
-                    p.actionType = ActionType::FIN;
+                    if (parameter[1] == 'I' && parameter[2] == 'N') {
+                        p.actionType = ActionType::FIN;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 case 'I':
-                    p.actionType = ActionType::INV;
+                    if (parameter[1] == 'N' && parameter[2] == 'V') {
+                        p.actionType = ActionType::INV;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 case 'O':
-                    p.actionType = ActionType::OFF;
+                    if (parameter[1] == 'F' && parameter[2] == 'F') {
+                        p.actionType = ActionType::OFF;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 case 'A':
-                    p.actionType = parameter[1] == 'C' ? ActionType::ACC : ActionType::ALL;
+                    if (parameter[1] == 'C' && parameter[2] == 'C') {
+                        p.actionType = ActionType::ACC;
+                    }
+                    else if (parameter[1] == 'L' && parameter[2] == 'L') {
+                        p.actionType = ActionType::ALL;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
                     break;
                 default:
                     p.from = parameter;

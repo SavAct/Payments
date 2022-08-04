@@ -78,19 +78,19 @@ export interface SavactsavpayPayoffall {
 }
 
 export interface SavactsavpayPayoffallsig {
+	to: string;
 	token_contract: string|number;
 	token_symbol: string;
 	recipient: string|number;
 	memo: string;
-	to: string;
 	sigtime: number;
 	sig: string;
 }
 
 export interface SavactsavpayPayoffnewacc {
+	to: string;
 	user_pub_key: string;
 	user_name: string|number;
-	to: string;
 	sigtime: number;
 	sig: string;
 }
@@ -186,8 +186,8 @@ export interface Savactsavpay extends Contract {
 	invalisig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoff(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoffall(to: string|number, token_contract: string|number, token_symbol: string, memo: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	payoffallsig(token_contract: string|number, token_symbol: string, recipient: string|number, memo: string, to: string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	payoffnewacc(user_pub_key: string, user_name: string|number, to: string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	payoffallsig(to: string, token_contract: string|number, token_symbol: string, recipient: string|number, memo: string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	payoffnewacc(to: string, user_pub_key: string, user_name: string|number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoffsig(to: string, id: number|string, recipient: string|number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	reject(to: string|number, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	rejectsig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -207,8 +207,8 @@ export interface Savactsavpay extends Contract {
 	invalisig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoff_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoffall_object_params(params: {to: string|number, token_contract: string|number, token_symbol: string, memo: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	payoffallsig_object_params(params: {token_contract: string|number, token_symbol: string, recipient: string|number, memo: string, to: string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	payoffnewacc_object_params(params: {user_pub_key: string, user_name: string|number, to: string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	payoffallsig_object_params(params: {to: string, token_contract: string|number, token_symbol: string, recipient: string|number, memo: string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	payoffnewacc_object_params(params: {to: string, user_pub_key: string, user_name: string|number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	payoffsig_object_params(params: {to: string, id: number|string, recipient: string|number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	reject_object_params(params: {to: string|number, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	rejectsig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;

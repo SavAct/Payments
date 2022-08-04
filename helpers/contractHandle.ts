@@ -50,7 +50,7 @@ export class Check {
     }
   }
 
-  public async ramTrace(action: () => Promise<any>, checkless = true) {
+  public async ramTrace(action: () => Promise<any>, checkless = true, checksamereceiver = true) {
     const ram_before = (await EOSManager.api.rpc.get_account(this.contract.account.name)).ram_usage
     const r = await action()
     const ram_after = (await EOSManager.api.rpc.get_account(this.contract.account.name)).ram_usage
@@ -70,26 +70,30 @@ export class Check {
       bought: 0,
       sold: 0,
     }
-    if ('action_traces' in r.processed && r.processed.action_traces.length > 0 && 'inline_traces' in r.processed.action_traces[0]) {
-      for (let t of r.processed.action_traces[0].inline_traces) {
-        if ('act' in t && 'name' in t.act) {
-          if (t.act.name == 'buyrambytes') {
-            chai.expect(t.act.data.payer).equal(this.contract.account.name, 'Wrong RAM payer')
-            chai.expect(t.act.data.receiver).equal(this.contract.account.name, 'Wrong RAM receiver')
-            sum.bought += t.act.data.bytes
-            ramlog += ` Bought ${t.act.data.bytes}`
-          } else if (t.act.name == 'sellram') {
-            chai.expect(t.act.data.account).equal(this.contract.account.name, 'Wrong RAM seller')
-            sum.sold += t.act.data.bytes
-            ramlog += ` Sold ${t.act.data.bytes}`
+    if (r.processed) {
+      if ('action_traces' in r.processed && r.processed.action_traces.length > 0 && 'inline_traces' in r.processed.action_traces[0]) {
+        for (let t of r.processed.action_traces[0].inline_traces) {
+          if ('act' in t && 'name' in t.act) {
+            if (t.act.name == 'buyrambytes') {
+              chai.expect(t.act.data.payer).equal(this.contract.account.name, 'Wrong RAM payer')
+              if (checksamereceiver) {
+                chai.expect(t.act.data.receiver).equal(this.contract.account.name, 'Wrong RAM receiver')
+              }
+              sum.bought += t.act.data.bytes
+              ramlog += ` Bought ${t.act.data.bytes}`
+            } else if (t.act.name == 'sellram') {
+              chai.expect(t.act.data.account).equal(this.contract.account.name, 'Wrong RAM seller')
+              sum.sold += t.act.data.bytes
+              ramlog += ` Sold ${t.act.data.bytes}`
+            }
           }
         }
       }
-    }
 
-    console.log(ramlog)
-    if (checkless) {
-      chai.expect(ram_delta).lessThanOrEqual(sum.bought, 'More RAM consumed than expected')
+      console.log(ramlog)
+      if (checkless) {
+        chai.expect(ram_delta).lessThanOrEqual(sum.bought, 'More RAM consumed than expected')
+      }
     }
 
     return { sum, ramlog }

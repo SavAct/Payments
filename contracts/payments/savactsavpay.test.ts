@@ -47,6 +47,7 @@ describe('SavPay', () => {
 
     // Deploy and initialize system dummy contract
     const sys_contract = await ContractDeployer.deployWithName<Systemdummy>('contracts/systemdummy/systemdummy', 'systemdummy')
+    await updateAuths(sys_contract.account)
     sys_contract.setramstate('10000000000.0000 RAMCORE', '235437088517 RAM', '6048272.9978 EOS')
 
     // Create accounts
@@ -791,12 +792,9 @@ describe('SavPay', () => {
         if (user[2].publicKey) {
           recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
         }
-        const currentMsTime = Date.now()
-        currentTime = Math.round(currentMsTime / 1000)
-        if (currentTime < in2Secs.end + 0.1) {
-          console.log(`\nWait for ${in2Secs.end * 1000 - currentMsTime + 100} ms to reach time limit`)
-          await sleep(in2Secs.end * 1000 - currentMsTime + 100)
-        }
+        currentTime = Math.floor(Date.now() / 1000)
+        await waitUntil(in2Secs.end)
+
         const r_name = await contract.pay2nameTable({ scope: user[1].name })
         chai.expect(r_name.rows.length).equal(2, 'Wrong amount of entries')
         chai.expect(r_name.rows[0].id).equal(2, 'Wrong id')
@@ -1197,7 +1195,6 @@ describe('SavPay', () => {
         const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '6', currentTime.toString()).sig
         await check.ramTrace(() => {
           return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `INV@${user[2].name}#${id6_Base58}!${currentTimeBase58}~${sig}`, { from: user[0] })
-          // return contract.invalisig(user[2].name, 6, currentTime, sig, { from: user[1] })
         })
         user0Asset.amount -= paraAsset.amount
         contractAsset.amount += paraAsset.amount
@@ -1289,139 +1286,339 @@ describe('SavPay', () => {
 
   // Pay off all
   context('Pay off all', async () => {
+    let in2Secs: { start: number; startBase58: string; end: number; endBase58: string }
     let in3Secs: { start: number; startBase58: string; end: number; endBase58: string }
     let currentTime: number
-    context('check completed payments', async () => {
-      before(async () => {
+    let currentTimeBase58: string
+    let paraAsset: Asset
+    before(async () => {
+      currentTime = Math.round(Date.now() / 1000)
+      in3Secs = {
+        start: currentTime,
+        startBase58: base58.encode(numberTouInt32(currentTime).reverse()),
+        end: Math.round(currentTime + 3),
+        endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 3)).reverse()),
+      }
+      paraAsset = new Asset(1, sys_token.symbol)
+    })
+    context('Z/13', async () => {
+      it('should succeed to set some payments 1', async () => {
+        // Set payments
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${inOneDayBs58}:from user1 0`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 1`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[0].name}!${inOneDayBs58}:from K1 key 2`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 3`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 2`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in3Secs.endBase58}:from user 1 to key_0 3`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 4`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient0PubK1.toString()}!${inOneDayBs58}:from K1 to key_0 5`, { from: user[0] })
+        })
+      })
+      it('should succeed to finalize and reject some payments 2', async () => {
+        // Finalize and reject some payments
+        await contract.reject(user[0].name, 2, { from: user[0] })
+        await contract.finalize(recipient0PubK1.toString(), 4, { from: user[1] })
+        const sig = signReject(recipient0PriK1.toString() as string, mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '5', currentTime.toString()).sig
+        await contract.rejectsig(recipient0PubK1.toString(), 5, currentTime, sig, { from: user[0] })
+        const {
+          rows: [item],
+        } = await contract.pay2keyTable({ scope: recipient0Split.scope.toString(), limit: 1 })
+
+        chai.expect(item.id).equal(1, 'Missing entry')
+        chai.expect(stringToAsset(item.fund).amount).lessThanOrEqual(sendAsset.amount, 'Wrong amount')
+      })
+      it('should fail to a name with no expired entries 3', async () => {
+        await assertEOSErrorIncludesMessage(contract.payoffall(user[2].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'No expired entries.', { from: user[3] }), 'No expired entries.')
+      })
+      it('should succeed to a name with one expired entry 4', async () => {
+        await check.ramTrace(async () => {
+          return await contract.payoffall(user[1].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'Pay off all', { from: user[3] })
+        })
+      })
+      it('should succeed to a name with finalized entry 5', async () => {
+        // Get balances
+        ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
+
+        // Wait until the time limits are expired
+        await waitUntil(in3Secs.end)
+
+        // Check table entries
+        const r = await contract.pay2nameTable({ scope: user[0].name })
+        chai.expect(r.rows.length).equal(4, 'Wrong amount of table entries')
+        chai.expect(r.rows[1].id).equal(1, 'Wrong id')
+        chai.expect(r.rows[1].time > 1 && r.rows[1].time < Date.now() / 1000).equal(true, 'Time limit is not expired, yet')
+
+        // Execute pay off all
+        await check.ramTrace(async () => {
+          return await contract.payoffall(user[0].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'Pay off all', { from: user[3] })
+        })
+      })
+      it('check name table 6', async () => {
+        const r = await contract.pay2nameTable({ scope: user[0].name })
+        chai.expect(r.rows.length).equal(2, 'Wrong number of entries remain')
+        chai.expect(r.rows[0].id).equal(0, 'Unexpired entry not found')
+        chai.expect(r.rows[1].id).equal(2, 'Rejected entry not found')
+        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
+
+        const sendAmountOfTwo = 2 * sendAsset.amount
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta - sendAmountOfTwo)).lessThan(10, 'Wrong contract balance')
+
+        chai.expect(newNirvanaAsset.amount - nirvanaAsset.amount).equal(0, 'Nirvana got wrong amount')
+
+        const deltaUser0 = newuser0Asset.amount - user0Asset.amount
+        chai.expect(sendAmountOfTwo - deltaUser0).lessThan(20, 'Changed balance of user 0')
+        chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
+        chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
+
+        contractAsset.amount = newContractAsset.amount
+        user0Asset.amount = newuser0Asset.amount
+      })
+      it('to key table 7', async () => {
+        const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'nonexisting', 'Pay off all', currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.payoffallsig(recipient0PubK1.toString(), sys_token.contract.account.name, sys_token.symbol.toString(), 'nonexisting', 'Pay off all', currentTime, sig, { from: user[3] }), 'Account does not exist.')
+      })
+      it('to key table 8', async () => {
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r.rows.length).equal(5, 'Wrong amount of table entries')
+        chai.expect(r.rows[0].id).equal(1, 'Wrong id')
+        chai.expect(r.rows[0].time > 1 && r.rows[0].time < Date.now() / 1000).equal(true, 'Time limit of id 1 is not expired, yet')
+        chai.expect(r.rows[2].id).equal(3, 'Wrong id')
+        chai.expect(r.rows[2].time > 1 && r.rows[2].time < Date.now() / 1000).equal(true, 'Time limit of id 3 is not expired, yet')
+        await check.ramTrace(async () => {
+          const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, user[0].name, 'Pay off all', currentTime.toString()).sig
+          return await contract.payoffallsig(recipient0PubK1.toString(), sys_token.contract.account.name, sys_token.symbol.toString(), user[0].name, 'Pay off all', currentTime, sig, { from: user[3] })
+        })
+      })
+      it('check table 9', async () => {
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r.rows.length).equal(2, 'Wrong number of entries remain')
+        chai.expect(r.rows[0].id).equal(2, 'Unexpired entry not found')
+        chai.expect(r.rows[1].id).equal(5, 'Rejected entry not found')
+        const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
+
+        const sendAmountOfThree = 3 * sendAsset.amount
+        const contractDelta = contractAsset.amount - newContractAsset.amount
+        chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
+        chai.expect(Math.abs(contractDelta - sendAmountOfThree)).lessThan(10, 'Wrong contract balance')
+
+        chai.expect(newNirvanaAsset.amount - nirvanaAsset.amount).equal(0, 'Nirvana got wrong amount')
+
+        const deltaUser0 = newuser0Asset.amount - user0Asset.amount
+        chai.expect(sendAmountOfThree - deltaUser0).lessThan(20, 'Changed balance of user 0')
+        chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
+        chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
+
+        contractAsset.amount = newContractAsset.amount
+        user0Asset.amount = newuser0Asset.amount
+      })
+      // Payoff all with "ALL" parameter
+      it('should succeed to set some payments and one finalized payment 10', async () => {
         currentTime = Math.round(Date.now() / 1000)
-        in3Secs = {
+        in2Secs = {
           start: currentTime,
           startBase58: base58.encode(numberTouInt32(currentTime).reverse()),
-          end: Math.round(currentTime + 3),
-          endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 3)).reverse()),
+          end: Math.round(currentTime + 2),
+          endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 2)).reverse()),
         }
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 6`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 7`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await contract.finalize(recipient0PubK1.toString(), 7, { from: user[1] })
+        })
+
+        const r_key = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r_key.rows.length).equal(4, 'Wrong amount of entries')
+        chai.expect(r_key.rows[3].id).equal(7, 'Wrong id in key table')
+        chai.expect(r_key.rows[3].time).equal(1, 'Entry is not finalized')
       })
-      context('Z/9 ', async () => {
-        it('should succeed to set some payments 1', async () => {
-          // Set payments
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${inOneDayBs58}:from user1 0`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 1`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[0].name}!${inOneDayBs58}:from K1 key 2`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 3`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 2`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in3Secs.endBase58}:from user 1 to key_0 3`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 4`, { from: user[0] })
-          await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient0PubK1.toString()}!${inOneDayBs58}:from K1 to key_0 5`, { from: user[0] })
+      it('should fail to a non existing user 11', async () => {
+        currentTimeBase58 = base58.encode(numberTouInt32(currentTime).reverse())
+
+        // Wait until the time limits are expired
+        await waitUntil(in2Secs.end)
+
+        const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'newernewuser', 'Pay off all', currentTime.toString()).sig
+
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+newernewuser:Pay off all`, { from: user[0] }), 'Account does not exist.')
+      })
+      it('should fail with wrong signature 12', async () => {
+        const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'newernewuser', 'Pay off all', currentTime.toString()).sig
+        await shouldFail(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] }))
+      })
+      it('should succeed on key table with "ALL" parameter 13', async () => {
+        const paraAsset = new Asset(1, sys_token.symbol)
+        const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, user[1].name, 'Pay off all', currentTime.toString()).sig
+
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] })
         })
-        it('should succeed to finalize and reject some payments 2', async () => {
-          // Finalize and reject some payments
-          await contract.reject(user[0].name, 2, { from: user[0] })
-          await contract.finalize(recipient0PubK1.toString(), 4, { from: user[1] })
-          const sig = signReject(recipient0PriK1.toString() as string, mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '5', currentTime.toString()).sig
-          await contract.rejectsig(recipient0PubK1.toString(), 5, currentTime, sig, { from: user[0] })
-          const {
-            rows: [item],
-          } = await contract.pay2keyTable({ scope: recipient0Split.scope.toString(), limit: 1 })
-
-          chai.expect(item.id).equal(1, 'Missing entry')
-          chai.expect(stringToAsset(item.fund).amount).lessThanOrEqual(sendAsset.amount, 'Wrong amount')
-        })
-        it('should fail to a name with no expired entries 3', async () => {
-          await assertEOSErrorIncludesMessage(contract.payoffall(user[2].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'No expired entries.', { from: user[3] }), 'No expired entries.')
-        })
-        it('should succeed to a name with one expired entry 4', async () => {
-          await check.ramTrace(async () => {
-            return await contract.payoffall(user[1].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'Pay off all', { from: user[3] })
-          })
-        })
-        it('should succeed to a name with finalized entry 5', async () => {
-          // Get balances
-          ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
-
-          // Wait until the time limits are expired
-          const currentMsTime = Date.now()
-          const currentTimeForWait = Math.round(currentMsTime / 1000)
-          if (currentTimeForWait < in3Secs.end + 0.1) {
-            console.log(`\nWait for ${in3Secs.end * 1000 - currentMsTime + 100} ms to reach time limit`)
-            await sleep(in3Secs.end * 1000 - currentMsTime + 100)
-          }
-
-          // Check table entries
-          const r = await contract.pay2nameTable({ scope: user[0].name })
-          chai.expect(r.rows.length).equal(4, 'Wrong amount of table entries')
-          chai.expect(r.rows[1].id).equal(1, 'Wrong id')
-          chai.expect(r.rows[1].time > 1 && r.rows[1].time < Date.now() / 1000).equal(true, 'Time limit is not expired, yet')
-
-          // Execute pay off all
-          await check.ramTrace(async () => {
-            return await contract.payoffall(user[0].name, sys_token.contract.account.name, sys_token.symbol.toString(), 'Pay off all', { from: user[3] })
-          })
-        })
-        it('Check name table 6', async () => {
-          const r = await contract.pay2nameTable({ scope: user[0].name })
-          chai.expect(r.rows.length).equal(2, 'Wrong number of entries remain')
-          chai.expect(r.rows[0].id).equal(0, 'Unexpired entry not found')
-          chai.expect(r.rows[1].id).equal(2, 'Rejected entry not found')
-          const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
-
-          const sendAmountOfTwo = 2 * sendAsset.amount
-          const contractDelta = contractAsset.amount - newContractAsset.amount
-          chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
-          chai.expect(Math.abs(contractDelta - sendAmountOfTwo)).lessThan(10, 'Wrong contract balance')
-
-          chai.expect(newNirvanaAsset.amount - nirvanaAsset.amount).equal(0, 'Nirvana got wrong amount')
-
-          const deltaUser0 = newuser0Asset.amount - user0Asset.amount
-          chai.expect(sendAmountOfTwo - deltaUser0).lessThan(20, 'Changed balance of user 0')
-          chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
-          chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
-
-          contractAsset.amount = newContractAsset.amount
-          user0Asset.amount = newuser0Asset.amount
-        })
-        it('to key table 7', async () => {
-          const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'nonexisting', 'Pay off all', currentTime.toString()).sig
-          await assertEOSErrorIncludesMessage(contract.payoffallsig(sys_token.contract.account.name, sys_token.symbol.toString(), 'nonexisting', 'Pay off all', recipient0PubK1.toString(), currentTime, sig, { from: user[3] }), 'Account does not exist.')
-        })
-        it('to key table 8', async () => {
-          const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
-          chai.expect(r.rows.length).equal(5, 'Wrong amount of table entries')
-          chai.expect(r.rows[0].id).equal(1, 'Wrong id')
-          chai.expect(r.rows[0].time > 1 && r.rows[0].time < Date.now() / 1000).equal(true, 'Time limit of id 1 is not expired, yet')
-          chai.expect(r.rows[2].id).equal(3, 'Wrong id')
-          chai.expect(r.rows[2].time > 1 && r.rows[2].time < Date.now() / 1000).equal(true, 'Time limit of id 3 is not expired, yet')
-          await check.ramTrace(async () => {
-            const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, user[0].name, 'Pay off all', currentTime.toString()).sig
-            return await contract.payoffallsig(sys_token.contract.account.name, sys_token.symbol.toString(), user[0].name, 'Pay off all', recipient0PubK1.toString(), currentTime, sig, { from: user[3] })
-          })
-        })
-        it('Check table 9', async () => {
-          const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
-          chai.expect(r.rows.length).equal(2, 'Wrong number of entries remain')
-          chai.expect(r.rows[0].id).equal(2, 'Unexpired entry not found')
-          chai.expect(r.rows[1].id).equal(5, 'Rejected entry not found')
-          const [newContractAsset, newNirvanaAsset, newuser0Asset, newuser1Asset, newuser2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
-
-          const sendAmountOfThree = 3 * sendAsset.amount
-          const contractDelta = contractAsset.amount - newContractAsset.amount
-          chai.expect(contractDelta != 0).equal(true, 'No fees, contract balance has not changed')
-          chai.expect(Math.abs(contractDelta - sendAmountOfThree)).lessThan(10, 'Wrong contract balance')
-
-          chai.expect(newNirvanaAsset.amount - nirvanaAsset.amount).equal(0, 'Nirvana got wrong amount')
-
-          const deltaUser0 = newuser0Asset.amount - user0Asset.amount
-          chai.expect(sendAmountOfThree - deltaUser0).lessThan(20, 'Changed balance of user 0')
-          chai.expect(newuser1Asset.amount - user1Asset.amount).equal(0, 'Changed balance of user 1')
-          chai.expect(newuser2Asset.amount - user2Asset.amount).equal(0, 'Changed balance of user 2')
-
-          contractAsset.amount = newContractAsset.amount
-          user0Asset.amount = newuser0Asset.amount
-        })
-        //TODO: payoff all with "ALL" parameter
+        const r_key = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r_key.rows.length).equal(2, 'Wrong amount of entries')
       })
     })
   })
-  // TODO: Pay off new account
+
+  // Pay off new account
+  context('Pay off new account', async () => {
+    let in2Secs: { start: number; startBase58: string; end: number; endBase58: string }
+    let currentTime: number
+    let currentTimeBase58: string
+    let paraAsset: Asset
+    let newAccountName1: string
+    let newAccountName2: string
+    before(async () => {
+      paraAsset = new Asset(1, sys_token.symbol)
+      newAccountName1 = 'testtest1111'
+      newAccountName2 = 'testtest2222'
+      currentTime = Math.round(Date.now() / 1000)
+      currentTimeBase58 = base58.encode(numberTouInt32(currentTime).reverse())
+      in2Secs = {
+        start: currentTime,
+        startBase58: base58.encode(numberTouInt32(currentTime).reverse()),
+        end: Math.round(currentTime + 2),
+        endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 2)).reverse()),
+      }
+    })
+    context('AA/10', async () => {
+      it('should succeed to set one expireing and one finalized payment 1', async () => {
+        // Set payments
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 8`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 9`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await contract.finalize(recipient0PubK1.toString(), 8, { from: user[1] })
+        })
+
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+
+        chai.expect(r.rows.length).equal(4, 'Wrong amount of entries')
+        chai.expect(r.rows[2].id).equal(8, 'Missing entry')
+        chai.expect(r.rows[2].time).equal(1, 'Not finalized')
+      })
+      it('should fail to a name with no expired entries 2', async () => {
+        const sig = signPayOffNewAcc(priKey1K1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName1, currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.payoffnewacc(pubKey1K1.toString(), pubKey1K1.toString(), newAccountName1, currentTime, sig, { from: user[3] }), 'No expired entries.')
+      })
+      it('should fail to a name with already existing account name 3', async () => {
+        const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), user[0].name, currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.payoffnewacc(recipient0PubK1.toString(), pubKey1K1.toString(), user[0].name, currentTime, sig, { from: user[3] }), 'Account already exists.')
+      })
+      it('should succeed 4', async () => {
+        // Wait until the time limits are expired
+        await waitUntil(in2Secs.end)
+
+        const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName1, currentTime.toString()).sig
+        await check.ramTrace(async () => {
+          return await contract.payoffnewacc(recipient0PubK1.toString(), pubKey1K1.toString(), newAccountName1, currentTime, sig, { from: user[3] }), true, false
+        })
+      })
+      it('check table 5', async () => {
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r.rows.length).equal(2, 'Wrong amount of remaining entries')
+
+        const ramCostForUser = 1000 // Estimated for 4000 Bytes of RAM
+        const netCostForUser = 5000 // Amount in system token
+        const cpuCostForUser = 5000 // Amount in system token
+
+        const newUserAsset = await getBalance(newAccountName1, sys_token)
+        console.log('sendAsset.amount', sendAsset.amount)
+        console.log('newUserAsset.amount', newUserAsset.amount)
+        console.log('sum cost', netCostForUser + cpuCostForUser + ramCostForUser)
+
+        chai.expect(sendAsset.amount * 2 - (newUserAsset.amount + netCostForUser + cpuCostForUser + ramCostForUser)).lessThan(100)
+      })
+
+      // Payoff new user with "ACC" parameter
+      it('should succeed to set one expireing and one finalized payment 6', async () => {
+        // Get current time values
+        currentTime = Math.round(Date.now() / 1000)
+        currentTimeBase58 = base58.encode(numberTouInt32(currentTime).reverse())
+        in2Secs = {
+          start: currentTime,
+          startBase58: base58.encode(numberTouInt32(currentTime).reverse()),
+          end: Math.round(currentTime + 2),
+          endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 2)).reverse()),
+        }
+
+        // Set payments
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 10`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 11`, { from: user[0] })
+        })
+        await check.ramTrace(async () => {
+          return await contract.finalize(recipient0PubK1.toString(), 10, { from: user[1] })
+        })
+
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+
+        chai.expect(r.rows.length).equal(4, 'Wrong amount of entries')
+        chai.expect(r.rows[2].id).equal(10, 'Missing entry')
+        chai.expect(r.rows[2].time).equal(1, 'Not finalized')
+      })
+      it('should fail to a name with no expired entries 7', async () => {
+        const sig = signPayOffNewAcc(priKey1K1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName2, currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${pubKey1K1.toString()}!${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] }), 'No expired entries.')
+      })
+      it('should fail to a name with already existing account name 8', async () => {
+        const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), user[0].name, currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[0].name}&${pubKey1K1.toString()}`, { from: user[0] }), 'Account already exists.')
+      })
+      it('should succeed with "ACC" parameter 9', async () => {
+        // Wait until the time limits are expired
+        await waitUntil(in2Secs.end)
+
+        const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName2, currentTime.toString()).sig
+        await check.ramTrace(
+          async () => {
+            return await sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] })
+          },
+          true,
+          false
+        )
+      })
+      it('check table 10', async () => {
+        const r = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
+        chai.expect(r.rows.length).equal(2, 'Wrong amount of remaining entries')
+
+        const ramCostForUser = 1000 // Estimated for 4000 Bytes of RAM
+        const netCostForUser = 5000 // Amount in system token
+        const cpuCostForUser = 5000 // Amount in system token
+
+        const newUserAsset = await getBalance(newAccountName2, sys_token)
+        console.log('sendAsset.amount', sendAsset.amount)
+        console.log('newUserAsset.amount', newUserAsset.amount)
+        console.log('sum cost', netCostForUser + cpuCostForUser + ramCostForUser)
+
+        chai.expect(sendAsset.amount * 2 - (newUserAsset.amount + netCostForUser + cpuCostForUser + ramCostForUser)).lessThan(1000)
+      })
+    })
+  })
 
   context('?/? deposited RAM', async () => {
     //TODO:
@@ -1511,6 +1708,36 @@ function signPayOffAll(privateKey: string, chainId: string, contract_name: strin
   return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
 
+/**
+ * Get the signature to payoff all system tokens to a new account
+ *
+ * @param privateKey Key which signs the message
+ * @param chainId Id of the chain where the contarct is deployed to
+ * @param contract_name Contract name
+ * @param pup_key_new_acc Public key of the new account in hex format
+ * @param new_account Account name of the new account which will be created receives all payments
+ * @param sigtime Current unix time of the signing
+ * @returns
+ */
+function signPayOffNewAcc(privateKey: string, chainId: string, contract_name: string, pup_key_new_acc: string, new_account: string, sigtime: string) {
+  const raw = `${chainId} ${contract_name} payoff new acc ${pup_key_new_acc} ${new_account} ${sigtime}`
+  return { raw: raw, sig: ecc.sign(raw, privateKey) }
+}
+
+/**
+ * Wait until a time stamp in seconds is reached + 100ms offset
+ * @param time Unix time stamp in seconds
+ */
+async function waitUntil(time: number) {
+  const msTime = time * 1000
+  const currentMsTime = Date.now()
+  const currentTimeForWait = Math.floor(currentMsTime / 1000)
+  if (currentTimeForWait < time + 0.5) {
+    console.log(`\nWait for ${time * 1000 - currentMsTime + 500} ms to reach time limit`)
+    await sleep(time * 1000 - currentMsTime + 500)
+  }
+}
+
 // TODO: Write tests for every case
 
 // Actions for testing (TODO: Delete them from contract files):
@@ -1530,7 +1757,7 @@ function signPayOffAll(privateKey: string, chainId: string, contract_name: strin
 // REJ@to_pub #id !sig_time ~sig
 // INV@to_pub #id !sig_time ~sig
 // OFF@to #id !sig_time ~sig +recipient
-// ALL!sig_time ~sig +recipient #nuance
+// ALL@to_pub !sig_time ~sig +recipient
 // ACC@to_pub !sig_time ~sig +recipient &recipient_key?
 
 // Actions of the contract:

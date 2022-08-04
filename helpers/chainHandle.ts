@@ -15,9 +15,9 @@ export async function getBalances(users: Array<Account>, token: Token) {
   return balances
 }
 
-export async function getBalance(user: Account, token: Token) {
+export async function getBalance(user: Account | string, token: Token) {
   const r = await token.contract.getTableRows('accounts', {
-    scope: user.name,
+    scope: typeof user == 'string' ? user : user.name,
   })
   if ('rows' in r && r.rows.length > 0) {
     return stringToAsset(r.rows[0].balance)

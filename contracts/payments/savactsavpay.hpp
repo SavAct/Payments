@@ -510,7 +510,7 @@ public:
      * @param to Origin recipient
      * @param id Id of the payment
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} reject {name of from or public key in hex format of from} {id} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} reject {name of from or public key in hex format of from} {id} {sigtime}"
      */
     ACTION rejectsig(const public_key& to, const uint64_t id, const uint32_t sigtime, const signature& sig) {
         check(eosio::current_time_point().sec_since_epoch() - sigtime < expirationTime, "The transaction is expired.");
@@ -633,7 +633,7 @@ public:
      * @param to Recipient
      * @param id Id of the payment
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} finalize {name of to or public key of to} {id} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} finalize {name of to or public key of to} {id} {sigtime}"
      */
     ACTION finalizesig(const string& to, const uint64_t id, const uint32_t sigtime, const signature& sig) {
         auto currentTime = eosio::current_time_point().sec_since_epoch();
@@ -769,7 +769,7 @@ public:
      * @param to Origin recipient
      * @param id Id of the payment
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} invalidate {name or public key of the origin recipient} {id} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} invalidate {name or public key of the origin recipient} {id} {sigtime}"
      */
     ACTION invalisig(const string& to, const uint64_t id, const uint32_t sigtime, const signature& sig) {
         auto currentTime = eosio::current_time_point().sec_since_epoch();
@@ -907,12 +907,12 @@ public:
 
     /**
      * @brief Pay off a public key which can be the sender or the recipient
-     *
+     * Note: Everyone can execute this transaction again for the expirationTime
      * @param to Name or public key of the origin recipient as string
      * @param id Id of the payment
      * @param recipient Recipient of the payment
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} payoff {name or public key of the origin recipient} {name of the recipient} {id} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} payoff {name or public key of the origin recipient} {name of the recipient} {id} {sigtime}"
      */
     ACTION payoffsig(const string& to, const uint64_t id, const name& recipient, const uint32_t sigtime, const signature& sig) {
         check(is_account(recipient), "Account does not exist.");
@@ -1067,13 +1067,13 @@ public:
     /**
      * @brief Payoff all system tokens to an public key by creating an account for the recipient.
      * Note: Because eos accounts cannot be deleted there is no further parameters for signature checking needed
+     * @param to Public key of the origin recipient which is used for the signature as well
      * @param user_pub_key Public key of the new account
      * @param user_name Name of the new account already exists
-     * @param to Public key of the origin recipient which is used for the signature as well
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} payoff all {public key in hex format of the new account} {name of the new account} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} payoff new acc {public key in hex format of the new account} {name of the new account} {sigtime}"
      */
-    ACTION payoffnewacc(const public_key& user_pub_key, const name& user_name, const public_key& to, const uint32_t sigtime, const signature& sig) {
+    ACTION payoffnewacc(const public_key& to, const public_key& user_pub_key, const name& user_name, const uint32_t sigtime, const signature& sig) {
         check(!is_account(user_name), "Account already exists.");
         const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
         check(currentTime - sigtime < expirationTime, "The transaction is expired.");
@@ -1084,7 +1084,7 @@ public:
 
         // Check the signature with the recipient of the payment
         string checkStr;
-        checkStr.append(chainIDAndContractName).append(" payoff all ").append(Conversion::vec_to_hex(Conversion::GetVectorFromPubKey(user_pub_key))).append(" ").append(user_name.to_string()).append(" ").append(std::to_string(sigtime));
+        checkStr.append(chainIDAndContractName).append(" payoff new acc ").append(Conversion::vec_to_hex(Conversion::GetVectorFromPubKey(user_pub_key))).append(" ").append(user_name.to_string()).append(" ").append(std::to_string(sigtime));
         const checksum256 digest = sha256(&checkStr[0], checkStr.size());
         assert_recover_key(digest, sig, to); // breaks if the signature doesn't match
 
@@ -1105,7 +1105,7 @@ public:
 
         // Send amount to new account
         EosioHandler::transfer(get_self(), user_name, fund, "Pay off all system tokens.");
-    }
+}
 
     /**
      * @brief Buy or sell RAM depending on the sign.
@@ -1144,15 +1144,15 @@ public:
     /**
      * @brief Payoff all tokens to the account of a public key.
      * Note: There are no id and sender in the signature considered and the recipient has to be an account that already exists. Therefor an timespan to expire the signature earlier is given.
+     * @param to Public key of the origin recipient which is used for the signature as well
      * @param token_contract Contract of the token
      * @param token_symbol Symbol of the token
      * @param recipient Recipient of the payment
      * @param memo Memo on pay off
-     * @param to Public key of the origin recipient which is used for the signature as well
      * @param sigtime Time stamp of the signature
-     * @param sig Signature of "{Chain id} {Name of this contract} payoff all {token contract name} {token symbol precision,name} {name of the recipient} {memo} {sigtime}"
+     * @param sig Signature of "{Chain id} {name of this contract} payoff all {token contract name} {token symbol precision,name} {name of the recipient} {memo} {sigtime}"
      */
-    ACTION payoffallsig(const name& token_contract, const symbol& token_symbol, const name& recipient, const string& memo, const public_key& to, const uint32_t sigtime, const signature& sig) {
+    ACTION payoffallsig(const public_key& to, const name& token_contract, const symbol& token_symbol, const name& recipient, const string& memo, const uint32_t sigtime, const signature& sig) {
         check(is_account(recipient), "Account does not exist.");
         const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
         check(currentTime - sigtime < expirationTime, "The transaction is expired.");
@@ -1304,8 +1304,8 @@ public:
             check(!p.relativeTime, "Need an absolute time stamp.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
-            check(p.hasRecipientPublicKey, "Missing recipient public key.");
-            payoffallsig(token_contract, fund.symbol, p.recipient, p.memo, p.recipientPublicKey, p.time, p.sig);
+            check(p.hasTo, "Missing recipient public key.");
+            payoffallsig(Conversion::String_to_public_key(p.to), token_contract, fund.symbol, p.recipient, p.memo, p.time, p.sig);
             break;
         case Conversion::ActionType::ACC:
             check(p.hasTime, "Missing signature time time.");
@@ -1313,7 +1313,7 @@ public:
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
             check(p.hasRecipientPublicKey, "Missing recipient public key.");
-            payoffnewacc(Conversion::String_to_public_key(p.to), p.recipient, p.recipientPublicKey, p.time, p.sig);
+            payoffnewacc(Conversion::String_to_public_key(p.to), p.recipientPublicKey, p.recipient, p.time, p.sig);
             break;
         default:
             check(false, "Invalid memo.");
@@ -1326,5 +1326,5 @@ public:
 // RAM@to !time | /relative_time
 // FIN@to_pub #id !sig_time ~sig
 // OFF@to #id !sig_time ~sig +recipient
-// ALL!sig_time ~sig +recipient #nuance
+// ALL@to_pub !sig_time ~sig +recipient
 // ACC@to_pub !sig_time ~sig +recipient &recipient_key?

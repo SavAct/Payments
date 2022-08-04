@@ -1,5 +1,8 @@
 #pragma once
 
+#include <eosio/eosio.hpp>
+#include <eosio/symbol.hpp>
+
 #include <eosio/action.hpp>
 #include <eosio/contract.hpp>
 #include <eosio/crypto.hpp>
@@ -11,12 +14,18 @@
 
 #include <eosio/asset.hpp>
 #include <eosio/multi_index.hpp>
+#include <vector>
+
+#include <eosio/system.hpp>
+#include <eosio/transaction.hpp>
 
 using eosio::checksum256;
 using eosio::ignore;
 using eosio::name;
 using eosio::permission_level;
 using eosio::public_key;
+
+using namespace eosio;
 
 /**
  * A weighted permission.
@@ -29,20 +38,7 @@ struct permission_level_weight {
    uint16_t          weight;
 
    // explicit serialization macro is not necessary, used here only to improve compilation time
-   EOSLIB_SERIALIZE( permission_level_weight, (permission)(weight) )
-};
-
-/**
- * Weighted key.
- *
- * A weighted key is defined by a public key and an associated weight.
- */
-struct key_weight {
-   eosio::public_key  key;
-   uint16_t           weight;
-
-   // explicit serialization macro is not necessary, used here only to improve compilation time
-   EOSLIB_SERIALIZE( key_weight, (key)(weight) )
+   EOSLIB_SERIALIZE(permission_level_weight, (permission)(weight))
 };
 
 /**
@@ -55,7 +51,7 @@ struct wait_weight {
    uint16_t           weight;
 
    // explicit serialization macro is not necessary, used here only to improve compilation time
-   EOSLIB_SERIALIZE( wait_weight, (wait_sec)(weight) )
+   EOSLIB_SERIALIZE(wait_weight, (wait_sec)(weight))
 };
 
 /**
@@ -74,7 +70,7 @@ struct authority {
    std::vector<wait_weight>              waits;
 
    // explicit serialization macro is not necessary, used here only to improve compilation time
-   EOSLIB_SERIALIZE( authority, (threshold)(keys)(accounts)(waits) )
+   EOSLIB_SERIALIZE(authority, (threshold)(keys)(accounts)(waits))
 };
 
 /**
@@ -102,16 +98,16 @@ struct block_header {
 
    // explicit serialization macro is not necessary, used here only to improve compilation time
    EOSLIB_SERIALIZE(block_header, (timestamp)(producer)(confirmed)(previous)(transaction_mroot)(action_mroot)
-                                    (schedule_version)(new_producers))
+      (schedule_version)(new_producers))
 };
 
 
-CONTRACT systemdummy : public eosio::contract {
+CONTRACT systemdummy : public eosio::contract{
   public:
     using eosio::contract::contract;
 
   private:
-  
+
    TABLE exchange_state {
         eosio::asset    supply;
 
@@ -129,30 +125,37 @@ CONTRACT systemdummy : public eosio::contract {
 
    public:
 
-      ACTION newaccount( const name& creator, const name& name, ignore<authority> owner, ignore<authority> active){
+      ACTION newaccount(const name& creator, const name& name, authority& owner, authority& active) {
+         // Create account by this dummy contract instead
+         action{
+            permission_level{get_self(), "active"_n},
+            "eosio"_n,
+            "newaccount"_n,
+            std::make_tuple(get_self(), name, owner, active)}
+         .send();
       }
 
-      ACTION setabi( const name& account, const std::vector<char>& abi){
+      ACTION setabi(const name& account, const std::vector<char>& abi) {
       }
 
-      ACTION setcode( const name& account, uint8_t vmtype, uint8_t vmversion, const std::vector<char>& code ) {
+      ACTION setcode(const name& account, uint8_t vmtype, uint8_t vmversion, const std::vector<char>& code) {
       }
 
-      ACTION buyram( const name& payer, const name& receiver, const eosio::asset& quant ){
+      ACTION buyram(const name& payer, const name& receiver, const eosio::asset& quant) {
       }
 
-      ACTION buyrambytes( const name& payer, const name& receiver, uint32_t bytes ){
-      }
-      
-      ACTION sellram( const name& account, int64_t bytes ){
+      ACTION buyrambytes(const name& payer, const name& receiver, uint32_t bytes) {
       }
 
-      ACTION delegatebw( const name& from, const name& receiver, const eosio::asset& stake_net_quantity, const eosio::asset& stake_cpu_quantity, bool transfer ) {
+      ACTION sellram(const name& account, int64_t bytes) {
+      }
+
+      ACTION delegatebw(const name& from, const name& receiver, const eosio::asset& stake_net_quantity, const eosio::asset& stake_cpu_quantity, bool transfer) {
       }
 
       ACTION setramstate(eosio::asset supply, eosio::asset basebalance, eosio::asset quotebalance);
 
-      ACTION deleteauth( ignore<name> account, ignore<name> permission ) {
-        eosio::check(false, "Hello World");
+      ACTION deleteauth(ignore<name> account, ignore<name> permission) {
+         eosio::check(false, "Hello World");
       }
 };

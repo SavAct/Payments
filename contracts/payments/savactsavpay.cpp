@@ -516,7 +516,7 @@ void savactsavpay::buyAccount(const name& self, const public_key& pubkey, const 
     // remove the cost for a new account
     int64_t ramCostForUser = EosioHandler::calcRamPrice(ramForUser);
     fund.amount -= (netCostForUser + cpuCostForUser + ramCostForUser);
-    check(fund.amount > 0, "Not enough amount to create an account");
+    check(fund.amount > 0, "Not enough amount to create an account.");
 
     // Create the account
     EosioHandler::createAccount(self, account, pubkey);
