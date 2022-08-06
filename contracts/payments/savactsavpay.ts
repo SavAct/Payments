@@ -20,6 +20,21 @@ export interface SavactsavpayData {
 	nextId: number|string;
 }
 
+export interface SavactsavpayExtend {
+	to: string|number;
+	id: number|string;
+	token_contract: string|number;
+	time: number;
+}
+
+export interface SavactsavpayExtendsig {
+	to: string;
+	id: number|string;
+	time: number;
+	sigtime: number;
+	sig: string;
+}
+
 export interface SavactsavpayFinalize {
 	to: string;
 	id: number|string;
@@ -180,6 +195,8 @@ export interface Savactsavpay extends Contract {
 	// Actions
 	clearallkey(scopevalue: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	clearallname(scope: string|number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extend(to: string|number, id: number|string, token_contract: string|number, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extendsig(to: string, id: number|string, time: number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalizesig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	invalidate(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -201,6 +218,8 @@ export interface Savactsavpay extends Contract {
 	// Actions with object params. (This is WIP and not ready for use)
 	clearallkey_object_params(params: {scopevalue: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	clearallname_object_params(params: {scope: string|number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extend_object_params(params: {to: string|number, id: number|string, token_contract: string|number, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extendsig_object_params(params: {to: string, id: number|string, time: number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalizesig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	invalidate_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;

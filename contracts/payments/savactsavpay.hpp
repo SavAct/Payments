@@ -262,7 +262,51 @@ public:
      * @param to User for which the RAM was offered
      * @param free Amount of byte which should be market as available again
      */
-    static void freeRamUsage(const name& self, const name& from, const name& to, const int32_t free);
+    static void freeRamUsage(const name& self, const name& from, const name& to, const uint32_t free);
+
+    /**
+     * @brief Set an amount of offered RAM as free to make it usable again for other payments.
+     *
+     * @param self This contract
+     * @param from RAM offerer
+     * @param to User for which the RAM was offered
+     * @param free Amount of byte which should be market as available again
+     * @param _ram RAM table with the recipient as scope
+     */
+    inline static void freeRamUsage(const name& self, const name& from, const name& to, const uint32_t free, ram_table& _ram);
+
+    /**
+     * @brief Set an amount of offered RAM as free to make it usable again for other payments.
+     *
+     * @param self This contract
+     * @param free Amount of byte which should be market as available again
+     * @param _ram RAM table with the recipient as scope
+     * @param itr Iterator to the RAM offerer
+     */
+    inline static void freeRamUsage(const name& self, const uint32_t free, ram_table& _ram, const ram_table::const_iterator& itr);
+
+
+    /**
+     * @brief Set an amount of offered RAM as used
+     *
+     * @param self This contract
+     * @param used Amount of byte which should be market as used
+     * @param _ram RAM table with the recipient as scope
+     * @param itr Iterator to the RAM offerer
+     */
+    inline static void setRamUsage(const name& self, const uint32_t used, ram_table& _ram, const ram_table::const_iterator& itr);
+
+
+    /**
+     * @brief Check if the old offerer payer accept the new time limit otherwise use a new RAM offerer
+     *
+     * @param self This contract
+     * @param to Origin recipient of the payment
+     * @param itr Iterator of the payment
+     * @param token_contract Contract name of the token
+     * @return the name of the ram offerer
+     */
+    inline static name changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, const name& token_contract, uint32_t time);
 
     /**
      * @brief Get the amount of RAM which is needed for a payment.
@@ -321,7 +365,19 @@ public:
      * @param _ram RAM table with the recipient as scope
      * @return ram_table::const_iterator
      */
-    static ram_table::const_iterator getFreeRAMPayer(const uint64_t neededRam, const uint32_t time, uint32_t currentTime, const ram_table& _ram);
+    static ram_table::const_iterator getFreeRAMPayer(const uint64_t neededRam, const uint32_t time, const uint32_t currentTime, const ram_table& _ram);
+
+    /**
+     * @brief Check if a RAM payer entry offers enough RAM
+     *
+     * @param neededRam Amount of RAM which is needed
+     * @param time Time stamp of the time limit for invalidation
+     * @param currentTime Current unix time stamp
+     * @param _ram RAM table with the recipient as scope
+     * @param itr Iterator of the entry
+     * @return bool
+     */
+    inline static bool isFreeRAMPayer(const uint64_t neededRam, const uint32_t time, const uint32_t currentTime, const ram_table& _ram, const ram_table::const_iterator& itr);
 
     /**
      * @brief Add a payment to pay2name-table.
@@ -459,6 +515,75 @@ public:
      * @param time Time stamp of a payment table
      */
     static void checkTime(uint32_t time);
+
+    /**
+     * @brief Extend a payment where the recipient is an account name.
+     *
+     * @param to Origin recipient
+     * @param id Id of the payment
+     * @param time New time limit for the payment
+     */
+    ACTION extend(const name& to, const uint64_t id, const name& token_contract, const uint32_t time) {
+        require_auth(to);
+        check(time > eosio::current_time_point().sec_since_epoch(), "Time is below current time.");
+
+        // Find entry
+        pay2name_table _pay2name(get_self(), to.value);
+        auto itr = _pay2name.find(id);
+        check(itr != _pay2name.end(), "Entry does not exist.");
+        check(itr->time != 0, "Payment is already rejected.");
+        check(itr->time != time, "Mentioned time limit is equal to the current one.");
+        check(itr->time < time, "Cannot reduce the time limit.");
+
+        // Find new RAM offerer if needed
+        const name payer = changeRamOfferer(get_self(), to, itr, token_contract, time);
+
+        // Extend the payment
+        _pay2name.modify(itr, get_self(), [&](auto& p) {
+            p.time = time;
+            p.ramBy = payer;
+        });
+    }
+
+    /**
+     * @brief Extend a payment where the recipient is a public key.
+     *
+     * @param to Origin recipient
+     * @param id Id of the payment
+     * @param extend New time limit for the payment
+     * @param sigtime Time stamp of the signature
+     * @param sig Signature of "{Chain id} {name of this contract} extend {extend time} {public key of origin recipient in hex format} {id} {sigtime}"
+     */
+    ACTION extendsig(const public_key& to, const uint64_t id, const uint32_t time, const uint32_t sigtime, const signature& sig) {
+        uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(currentTime - sigtime < expirationTime, "The transaction is expired.");
+        check(time > currentTime, "Time is below current time.");
+
+        // Find entry
+        uint64_t scope;
+        auto to_vec = Conversion::GetVectorFromPubKeySplitFormat(to, scope);
+        pay2key_table _pay2key(get_self(), scope);
+        auto itr = _pay2key.find(id);
+
+        // Check the parameters
+        check(itr != _pay2key.end(), "Entry does not exist.");
+        check(itr->to == to_vec, "Wrong public key.");          // Check the recipient
+        check(itr->time != 0, "Payment is already rejected.");
+        check(itr->time != time, "Mentioned time limit is equal to the current one.");
+        check(itr->time < time, "Cannot reduce the time limit.");
+
+        // Extend the payment
+        _pay2key.modify(itr, get_self(), [&](auto& p) {
+            p.time = time;
+        });
+
+        // Check the signature with the recipient of the payment
+        auto to_hex = Conversion::vec_to_hex(Conversion::GetVectorFromPubKey(to));
+        string checkStr;
+        checkStr.append(chainIDAndContractName).append(" extend ").append(std::to_string(time)).append(" ").append(to_hex).append(" ").append(std::to_string(id)).append(" ").append(std::to_string(sigtime));
+        const checksum256 digest = sha256(&checkStr[0], checkStr.size());
+        assert_recover_key(digest, sig, to); // breaks if the signature doesn't match
+    }
 
     /**
      * @brief Reject a payment to the sender where the recipient is an account name.
@@ -1272,48 +1397,51 @@ public:
             break;
         case Conversion::ActionType::REJ:
             check(p.hasId, "Missing id.");
-            check(p.hasTime, "Missing signature time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
-            rejectsig(Conversion::String_to_public_key(p.to), p.id, p.time, p.sig);
+            rejectsig(Conversion::String_to_public_key(p.to), p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::FIN:
             check(p.hasId, "Missing id.");
-            check(p.hasTime, "Missing signature time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
-            finalizesig(p.to, p.id, p.time, p.sig);
+            finalizesig(p.to, p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::INV:
             check(p.hasId, "Missing id.");
-            check(p.hasTime, "Missing signature time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
-            invalisig(p.to, p.id, p.time, p.sig);
+            invalisig(p.to, p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::OFF:
             check(p.hasId, "Missing id.");
-            check(p.hasTime, "Missing signature time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
-            payoffsig(p.to, p.id, p.recipient, p.time, p.sig);
+            payoffsig(p.to, p.id, p.recipient, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::ALL:
-            check(p.hasTime, "Missing signature time time.");
+            check(p.hasSigTime, "Missing signature time time.");
             check(!p.relativeTime, "Need an absolute time stamp.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
             check(p.hasTo, "Missing recipient public key.");
-            payoffallsig(Conversion::String_to_public_key(p.to), token_contract, fund.symbol, p.recipient, p.memo, p.time, p.sig);
+            payoffallsig(Conversion::String_to_public_key(p.to), token_contract, fund.symbol, p.recipient, p.memo, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::ACC:
-            check(p.hasTime, "Missing signature time time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSigTime, "Missing signature time time.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
             check(p.hasRecipientPublicKey, "Missing recipient public key.");
-            payoffnewacc(Conversion::String_to_public_key(p.to), p.recipientPublicKey, p.recipient, p.time, p.sig);
+            payoffnewacc(Conversion::String_to_public_key(p.to), p.recipientPublicKey, p.recipient, p.sigTime, p.sig);
+            break;
+        case Conversion::ActionType::EXT:
+            check(p.hasId, "Missing id.");
+            check(p.hasTime, "Missing time parameter.");
+            check(p.hasSigTime, "Missing signature time.");
+            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(p.hasSignature, "Missing signature.");
+            extendsig(Conversion::String_to_public_key(p.to), p.id, p.time, p.sigTime, p.sig);
             break;
         default:
             check(false, "Invalid memo.");
@@ -1324,7 +1452,8 @@ public:
 // Memo parameters:
 // from? @to !time ;memo? | :abstimmungen?
 // RAM@to !time | /relative_time
-// FIN@to_pub #id !sig_time ~sig
-// OFF@to #id !sig_time ~sig +recipient
-// ALL@to_pub !sig_time ~sig +recipient
-// ACC@to_pub !sig_time ~sig +recipient &recipient_key?
+// FIN@to_pub #id =sig_time ~sig
+// EXT@to #id !time =sig_time ~sig
+// OFF@to #id =sig_time ~sig +recipient
+// ALL@to_pub =sig_time ~sig +recipient
+// ACC@to_pub =sig_time ~sig +recipient &recipient_key?

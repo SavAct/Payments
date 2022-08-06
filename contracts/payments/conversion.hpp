@@ -350,7 +350,8 @@ public:
         OFF,
         ALL,
         ACC,
-        INV
+        INV,
+        EXT,
     };
 
     struct PaymentParams {
@@ -362,6 +363,7 @@ public:
         bool relativeTime = false;
         bool hasId = false;
         bool hasSignature = false;
+        bool hasSigTime = false;
         bool hasRecipient = false;
         bool hasRecipientPublicKey = false;
         ActionType actionType = ActionType::PAY;
@@ -371,6 +373,7 @@ public:
         uint32_t time;
         uint64_t id;
         signature sig;
+        uint32_t sigTime;
         name recipient;
         public_key recipientPublicKey;
     };
@@ -383,14 +386,13 @@ public:
     }
 
     /** The signs to seperate the memo. The sequence of the chars are importend. */
-    inline static const string parasigns = "@/!;:#~+&";
+    inline static const string parasigns = "@/!;:#~=+&";
 
     /** Set a parameter from string
      *	@param parameter	Parameter as string
      *	@param type 		The type of the parameter
      */
     static void GetParameter(PaymentParams& p, const string& parameter, int type) {
-        // if(parameter.size() > -1){
         // Switch between the order of chars in parasigns
         switch (type)
         {
@@ -449,6 +451,14 @@ public:
                     }
                     else if (parameter[1] == 'L' && parameter[2] == 'L') {
                         p.actionType = ActionType::ALL;
+                    }
+                    else {
+                        assertWrongInput();
+                    }
+                    break;
+                case 'E':
+                    if (parameter[1] == 'X' && parameter[2] == 'T') {
+                        p.actionType = ActionType::EXT;
                     }
                     else {
                         assertWrongInput();
@@ -513,11 +523,18 @@ public:
             p.hasSignature = true;
             break;
         case 7:
+            // Signature time
+            uint32_t sigTime;
+            check(Base58::decode_base58(parameter, sigTime), "Decoding of the signature time value failed.");
+            p.sigTime = sigTime;
+            p.hasSigTime = true;
+            break;
+        case 8:
             // Recipient name
             p.recipient = name(parameter);
             p.hasRecipient = true;
             break;
-        case 8:
+        case 9:
             // Recipient public key
             p.recipientPublicKey = Conversion::String_to_public_key(parameter);
             p.hasRecipientPublicKey = true;

@@ -122,6 +122,28 @@ Reject a payment. This action can only be executed by the mentioned recipient of
 
 \* The public key in lower case hex format with one added byte for the key type. For example, the value for `PUB_K1_6MRyAjQq8ud7hVNYcfnVPJqcVpscN5So8BhtHuGYqET5BoDq63` is "`02c0ded2bc1f1305fb0faac5e6c03ee3a1924234985427b6167ca569d13df435cf00`".
 
+# Extend
+
+Extend the time limit of a payment. This action can only be executed by the mentioned recipient of the payment.
+
+### Extend "to name" payment
+
+| Action | `extend(to, id, time)`                 |
+| :----- | :------------------------------------- |
+| `to`   | Origin recipient account name          |
+| `id`   | Primary key of `paytoname` table entry |
+| `time` | Unix time stamp of the new time limit  |
+
+### Extend "to key" payment
+
+| Action    | `extendsig(to, id, time, sigtime, sig)`                                                                                                                        |
+| :-------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `to`      | Origin recipient public key                                                                                                                                    |
+| `id`      | Primary key of `paytokey` table entry                                                                                                                          |
+| `time`    | Unix time stamp of the new time limit                                                                                                                          |
+| `sigtime` | Unix time stamp of the signature                                                                                                                               |
+| `sig`     | Signature of "{chain id} {name of this contract} expand {time} {public key of origin recipient in hex format} {id} {sigtime}" by origin payment recipient `to` |
+
 # Invalidate
 
 Invalidate / burn a payment. This action can only be executed by the sender of the payment and within the time limit. It results in the recipient and sender not receiving the payment. Instead it will be send to the SavAct stake account and hence distributed among the SavAct token holders.

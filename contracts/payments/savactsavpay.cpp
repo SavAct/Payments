@@ -189,9 +189,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
             ram_payer = itr->from;
 
             // Set the needed RAM amount of the offerer as used
-            _ram.modify(itr, get_self(), [&](auto& p) {
-                p.free -= neededRAM;
-                });
+            setRamUsage(get_self(), neededRAM, _ram, itr);
 
             // neededRAM = 0; // Not necessary 
         }
@@ -230,6 +228,12 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         // Add payment to table
         addpayment(_pay2key, index, fromVec, to_vec, fund, token_contract, memo, time, get_self());
     }
+}
+
+void savactsavpay::setRamUsage(const name& self, const uint32_t used, ram_table& _ram, const ram_table::const_iterator& itr) {
+    _ram.modify(itr, self, [&](auto& p) {
+        p.free -= used;
+        });
 }
 
 void savactsavpay::sendTokenHandleRAM(const name& self, const name& to, const name& ramBy, const name& recipient, const name& token_contract, const asset& fund, const string& memo, const int32_t freeRAM) {
@@ -401,36 +405,75 @@ void savactsavpay::addpayment(pay2key_table& table, const uint64_t index, const 
         });
 }
 
-savactsavpay::ram_table::const_iterator savactsavpay::getFreeRAMPayer(const uint64_t neededRam, const uint32_t time, uint32_t currentTime, const ram_table& _ram) {
+bool savactsavpay::isFreeRAMPayer(const uint64_t neededRam, const uint32_t time, const uint32_t currentTime, const ram_table& _ram, const ram_table::const_iterator& itr) {
+    if (neededRam <= itr->free) {
+        if (itr->relative) {
+            if (time - currentTime <= itr->maxTime) {
+                return true;
+            }
+        }
+        else
+        {
+            if (time <= itr->maxTime) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+savactsavpay::ram_table::const_iterator savactsavpay::getFreeRAMPayer(const uint64_t neededRam, const uint32_t time, const uint32_t currentTime, const ram_table& _ram) {
     // Search for a free ram payer for this recipient
     auto itr = _ram.begin();
     while (itr != _ram.end()) {
-        if (neededRam <= itr->free) {
-            if (itr->relative) {
-                if (time - currentTime <= itr->maxTime) {
-                    break;
-                }
-            }
-            else
-            {
-                if (time <= itr->maxTime) {
-                    break;
-                }
-            }
+        if (isFreeRAMPayer(neededRam, time, currentTime, _ram, itr)) {
+            break;
         }
         ++itr;
     }
     return itr;
 }
 
-void savactsavpay::freeRamUsage(const name& self, const name& from, const name& to, const int32_t free) {
+void savactsavpay::freeRamUsage(const name& self, const name& from, const name& to, const uint32_t free) {
     ram_table _ram(self, to.value);
+    freeRamUsage(self, from, to, free, _ram);
+}
+
+void savactsavpay::freeRamUsage(const name& self, const name& from, const name& to, const uint32_t free, ram_table& _ram) {
     auto itr = _ram.find(from.value);
     check(itr != _ram.end(), "RAM entry does not exist.");  // This cannot happen, just for double checking
+    freeRamUsage(self, free, _ram, itr);
+}
 
+void savactsavpay::freeRamUsage(const name& self, const uint32_t free, ram_table& _ram, const ram_table::const_iterator& itr) {
     _ram.modify(itr, self, [&](auto& p) {
         p.free += free;
         });
+}
+
+name savactsavpay::changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, const name& token_contract, uint32_t time) {
+    if (itr->ramBy != self) {
+        // Get RAM amount
+        auto usedRAM = getRamForPayment(self, itr->from.size() == 8, true, token_contract, itr->fund.symbol, itr->memo);
+
+        // Check time of old offerer, Check for relative time and absolut time
+        ram_table _ram(self, to.value);
+        auto byRam_itr = _ram.find(itr->ramBy.value);
+        auto currentTime = eosio::current_time_point().sec_since_epoch();
+        if (!isFreeRAMPayer(0, time, currentTime, _ram, byRam_itr)) {
+            // Search for a new free RAM payer for this recipient
+            auto newRamBy_itr = getFreeRAMPayer(usedRAM, time, currentTime, _ram);
+            check(newRamBy_itr != _ram.end(), "No RAM payer for this time span.");
+
+            // Free RAM of previous RAM payer
+            freeRamUsage(self, usedRAM, _ram, newRamBy_itr);
+            // Set RAM of new RAM payer as in use 
+            setRamUsage(self, usedRAM, _ram, newRamBy_itr);
+
+            return newRamBy_itr->from;
+        }
+    }
+    return itr->ramBy;
 }
 
 int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub_key, const name& token_contract, asset& fund, const uint32_t currenttime, const name& self) {

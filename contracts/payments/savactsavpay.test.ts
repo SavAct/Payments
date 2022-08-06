@@ -102,7 +102,9 @@ describe('SavPay', () => {
   })
 
   let inOneDay: number
+  let inTwoDays: number
   let inOneDayBs58: string
+  let inTwoDaysBs58: string
   let sendAsset: Asset
   let sendAssetString: string
 
@@ -193,7 +195,7 @@ describe('SavPay', () => {
       })
       it('should succeed with memo 6', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[2].name}!${inOneDayBs58};@new?key;format! from k1 to user_2`, { from: user[0] })
         })
       })
       it('should fail with R1 key 7', async () => {
@@ -211,7 +213,7 @@ describe('SavPay', () => {
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
           chai.expect(String(item.id)).equal(String(id), 'Wrong id') // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
           if (item.memo) {
-            chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
+            chai.expect(item.memo).equal('@new?key;format! from k1 to user_2', 'The memo is wrong')
           } else {
             chai.expect(item.memo).equal('', 'There should no memo be defined')
           }
@@ -254,7 +256,7 @@ describe('SavPay', () => {
       })
       it('should succeed with K1 memo 6', async () => {
         await check.ramTrace(async () => {
-          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
+          return await sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${pubKey1K1.toString()}!${inOneDayBs58};@new?key;format! from user_0 to k1`, { from: user[0] })
         })
       })
       it('should fail with R1 key 7', async () => {
@@ -271,7 +273,7 @@ describe('SavPay', () => {
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
           chai.expect(String(item.id)).equal(String(id), 'Wrong id')
           if (item.memo) {
-            chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
+            chai.expect(item.memo).equal('@new?key;format! from user_0 to k1', 'The memo is wrong')
           } else {
             chai.expect(item.memo).equal('', 'There should no memo be defined')
           }
@@ -318,7 +320,7 @@ describe('SavPay', () => {
       })
       it('should succeed with memo 6', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};@new?key;format!`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};@new?key;format! from k1 to k1_2`, { from: user[0] })
         })
       })
       it('should fail with R1 sender key 7', async () => {
@@ -340,7 +342,7 @@ describe('SavPay', () => {
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
           chai.expect(String(item.id)).equal(String(id), 'Wrong id')
           if (item.memo) {
-            chai.expect(item.memo).equal('@new?key;format!', 'The memo is wrong')
+            chai.expect(item.memo).equal('@new?key;format! from k1 to k1_2', 'The memo is wrong')
           } else {
             chai.expect(item.memo).equal('', 'There should no memo be defined')
           }
@@ -724,7 +726,7 @@ describe('SavPay', () => {
       })
       it('should succeed from key to key and memo 4', async () => {
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[0].publicKey}@${recipient0PubK1.toString()}!${in2Secs.endBase58};hello;!@$again`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[0].publicKey}@${recipient0PubK1.toString()}!${in2Secs.endBase58};hello;!@$again from user_0 to k1_0`, { from: user[0] })
         })
         chai.expect((await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })).rows.length).equal(2)
       })
@@ -966,7 +968,7 @@ describe('SavPay', () => {
         const paraAsset = new Asset(1, sys_token.symbol)
         const sig = signPayOff(recipient2PriK1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), user[2].name, '1', currentTime.toString()).sig
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `OFF@${recipient2PubK1.toString()}#${id1_Base58}!${currentTimeBase58}~${sig}+${user[2].name}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `OFF@${recipient2PubK1.toString()}#${id1_Base58}=${currentTimeBase58}~${sig}+${user[2].name}`, { from: user[0] })
         })
         user0Asset.amount -= paraAsset.amount
         contractAsset.amount += paraAsset.amount
@@ -981,7 +983,7 @@ describe('SavPay', () => {
         const paraAsset = new Asset(1000, sys_token.symbol)
         const sig_fin = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '2', currentTime.toString()).sig
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `FIN@${user[2].name}#${id2_Base58}!${currentTimeBase58}~${sig_fin}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `FIN@${user[2].name}#${id2_Base58}=${currentTimeBase58}~${sig_fin}`, { from: user[0] })
         })
         user0Asset.amount -= paraAsset.amount
         contractAsset.amount += paraAsset.amount
@@ -1026,7 +1028,7 @@ describe('SavPay', () => {
       it('should succeed payoff rejected from key to name payment via "OFF" transfer parameter 4', async () => {
         const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, user[0].name, '3', currentTime.toString()).sig
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `OFF@${user[2].name}#${id3_Base58}!${currentTimeBase58}~${sig}+${user[0].name}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `OFF@${user[2].name}#${id3_Base58}=${currentTimeBase58}~${sig}+${user[0].name}`, { from: user[0] })
         })
         user0Asset.amount -= minAsset.amount
       })
@@ -1055,7 +1057,7 @@ describe('SavPay', () => {
       it('should succeed rejection from key to key payment with "REJ" parameter 7', async () => {
         const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '3', currentTime.toString()).sig
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `REJ@${recipient2PubK1.toString()}#${id3_Base58}!${currentTimeBase58}~${sig}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `REJ@${recipient2PubK1.toString()}#${id3_Base58}=${currentTimeBase58}~${sig}`, { from: user[0] })
         })
         user0Asset.amount -= minAsset.amount
       })
@@ -1065,7 +1067,7 @@ describe('SavPay', () => {
       it('should succeed payoff rejected from key to key payment via "OFF" transfer parameter 9', async () => {
         const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), user[0].name, '3', currentTime.toString()).sig
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `OFF@${recipient2PubK1.toString()}#${id3_Base58}!${currentTimeBase58}~${sig}+${user[0].name}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, minAsset.toString(), `OFF@${recipient2PubK1.toString()}#${id3_Base58}=${currentTimeBase58}~${sig}+${user[0].name}`, { from: user[0] })
         })
         user0Asset.amount -= minAsset.amount
       })
@@ -1194,7 +1196,7 @@ describe('SavPay', () => {
         const paraAsset = new Asset(1, sys_token.symbol)
         const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, '6', currentTime.toString()).sig
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `INV@${user[2].name}#${id6_Base58}!${currentTimeBase58}~${sig}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `INV@${user[2].name}#${id6_Base58}=${currentTimeBase58}~${sig}`, { from: user[0] })
         })
         user0Asset.amount -= paraAsset.amount
         contractAsset.amount += paraAsset.amount
@@ -1284,6 +1286,145 @@ describe('SavPay', () => {
     })
   })
 
+  // Extend
+  context('Extend', async () => {
+    let contractAsset: Asset
+    let user0Asset: Asset
+    let user1Asset: Asset
+    let user2Asset: Asset
+    let currentTime: number
+    let currentTimeBs58: string
+    let in8Secs: { start: number; startBase58: string; end: number; endBase58: string }
+    let paraAsset: Asset
+    before(async () => {
+      paraAsset = new Asset(1, sys_token.symbol)
+      // Get times
+      currentTime = Math.floor(Date.now() / 1000)
+      currentTimeBs58 = base58.encode(numberTouInt32(currentTime).reverse())
+      inTwoDays = Math.round(currentTime + 3600 * 24)
+      inTwoDaysBs58 = base58.encode(numberTouInt32(inTwoDays).reverse())
+      in8Secs = {
+        start: currentTime,
+        startBase58: base58.encode(numberTouInt32(currentTime).reverse()),
+        end: Math.round(currentTime + 8),
+        endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 8)).reverse()),
+      }
+    })
+    context('Z/5 payment', async () => {
+      it('should succeed to set some payments 1', async () => {
+        // Set some more payments
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${user[1].name}!${inOneDayBs58}: ex from user_0 to user_1 #4`, { from: user[0] })
+        })
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${user[1].name}!${in8Secs.endBase58}: ex from user_0 to user_1 #5`, { from: user[0] })
+        })
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${inOneDayBs58}:ex from user_0 to k1 #3`, { from: user[0] })
+        })
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${in8Secs.endBase58}:ex from user_0 to k1 #4`, { from: user[0] })
+        })
+        ;[contractAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, user[0], user[1], user[2]], sys_token)
+        const nameRows = (await contract.pay2nameTable({ scope: user[1].name })).rows
+        let keyRows = (await contract.pay2keyTable({ scope: splitKey1K1.scope.toString() })).rows
+
+        chai.expect(nameRows.length).equal(3, 'Wrong number of entries name table')
+        chai.expect(nameRows[1].id).equal(4, 'Wrong id in name table')
+        chai.expect(nameRows[2].id).equal(5, 'Wrong id in name table')
+        chai.expect(keyRows.length).equal(3, 'Wrong number of entries key table')
+        chai.expect(keyRows[1].id).equal(3, 'Wrong id in key table')
+        chai.expect(keyRows[2].id).equal(4, 'Wrong id in key table')
+      })
+
+      it('should fail with auth error by sender auth 2', async () => {
+        await assertMissingAuthority(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[0] }))
+      })
+      it('should fail with auth error by contract auth 3', async () => {
+        await assertMissingAuthority(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: contract.account }))
+      })
+      it('should fail with lower than current time on name payment 4', async () => {
+        await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, currentTime - 1, { from: user[1] }), 'Time is below current time.')
+      })
+      it('should fail with lower than current time on key payment  5', async () => {
+        const earlier = currentTime - 1
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, earlier.toString(), hexWithTypeOfPubKey(pubKey1K1), (4).toString(), currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 4, earlier, currentTime, sig, { from: user[2] }), 'Time is below current time.')
+      })
+      it('should fail with earlier time on name payment 6', async () => {
+        await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, currentTime + 7, { from: user[1] }), 'Cannot reduce the time limit.')
+      })
+      it('should fail with eralier time on key payment 7', async () => {
+        const earlier = currentTime + 7
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, earlier.toString(), hexWithTypeOfPubKey(pubKey1K1), (4).toString(), currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 4, earlier, currentTime, sig, { from: user[2] }), 'Cannot reduce the time limit.')
+      })
+      it('should fail with negative time on name payment 8', async () => {
+        await shouldFail(contract.extend(user[1].name, 4, sys_token.contract.account.name, -1, { from: user[1] }))
+      })
+      it('should fail with same time on name payment 9', async () => {
+        await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, inOneDay, { from: user[1] }), 'Mentioned time limit is equal to the current one.')
+      })
+      it('should fail with same time on key payment 10', async () => {
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inOneDay.toString(), hexWithTypeOfPubKey(pubKey1K1), (3).toString(), currentTime.toString()).sig
+        await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 3, inOneDay, currentTime, sig, { from: user[2] }), 'Mentioned time limit is equal to the current one.')
+      })
+      it('should succeed on name table 11', async () => {
+        contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[1] })
+        const nameRows = (await contract.pay2nameTable({ scope: user[1].name })).rows
+        chai.expect(nameRows[1].time).equal(inTwoDays, 'Wrong time value')
+      })
+      it('should fail with wrong signature 12', async () => {
+        const wrong_sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inTwoDays.toString(), hexWithTypeOfPubKey(pubKey1K1), (4).toString(), currentTime.toString()).sig
+        await shouldFail(contract.extendsig(pubKey1K1.toString(), 3, inTwoDays, currentTime, wrong_sig, { from: user[2] }))
+      })
+      it('should succeed on key table 13', async () => {
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inTwoDays.toString(), hexWithTypeOfPubKey(pubKey1K1), (3).toString(), currentTime.toString()).sig
+        await check.ramTrace(async () => {
+          return contract.extendsig(pubKey1K1.toString(), 3, inTwoDays, currentTime, sig, { from: user[2] })
+        })
+      })
+
+      it('should succeed to finalize and reject some payments 14', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[1].name, 4, { from: user[1] })
+        })
+        await check.ramTrace(async () => {
+          return contract.finalize(pubKey1K1.toString(), 3, { from: user[0] })
+        })
+      })
+
+      it('should fail to extend a rejected payment 15', async () => {
+        await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[1] }), 'Payment is already rejected.')
+      })
+
+      it('should succeed to extend a finalized payment with "EXT" parameter 16', async () => {
+        const id3_Base58 = base58.encode(numberTouInt64(BigInt(3)).reverse())
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inTwoDays.toString(), hexWithTypeOfPubKey(pubKey1K1), (3).toString(), currentTime.toString()).sig
+        await check.ramTrace(() => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `EXT@${pubKey1K1.toString()}#${id3_Base58}!${inTwoDaysBs58}=${currentTimeBs58}~${sig}`, { from: user[0] })
+          // await contract.extendsig(pubKey1K1.toString(), 2, inTwoDays, currentTime, sig, { from: user[1] })
+        })
+      })
+
+      it('should succeed on expired payment on name table 17', async () => {
+        await waitUntil(in8Secs.end)
+        await check.ramTrace(async () => {
+          return contract.extend(user[1].name, 5, sys_token.contract.account.name, inOneDay, { from: user[1] })
+        })
+      })
+      it('should succeed on expired payment on key table with "EXT" parameter 18', async () => {
+        const id4_Base58 = base58.encode(numberTouInt64(BigInt(4)).reverse())
+        const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inTwoDays.toString(), hexWithTypeOfPubKey(pubKey1K1), (4).toString(), currentTime.toString()).sig
+
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `EXT@${pubKey1K1.toString()}#${id4_Base58}!${inTwoDaysBs58}=${currentTimeBs58}~${sig}`, { from: user[0] })
+          // return contract.extendsig(pubKey1K1.toString(), 3, inOneDay, currentTime, sig, { from: user[1] })
+        })
+      })
+    })
+  })
+
   // Pay off all
   context('Pay off all', async () => {
     let in2Secs: { start: number; startBase58: string; end: number; endBase58: string }
@@ -1301,7 +1442,7 @@ describe('SavPay', () => {
       }
       paraAsset = new Asset(1, sys_token.symbol)
     })
-    context('Z/13', async () => {
+    context('AA/13', async () => {
       it('should succeed to set some payments 1', async () => {
         // Set payments
         await check.ramTrace(async () => {
@@ -1460,18 +1601,18 @@ describe('SavPay', () => {
 
         const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'newernewuser', 'Pay off all', currentTime.toString()).sig
 
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+newernewuser:Pay off all`, { from: user[0] }), 'Account does not exist.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+newernewuser:Pay off all`, { from: user[0] }), 'Account does not exist.')
       })
       it('should fail with wrong signature 12', async () => {
         const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'newernewuser', 'Pay off all', currentTime.toString()).sig
-        await shouldFail(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] }))
+        await shouldFail(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] }))
       })
       it('should succeed on key table with "ALL" parameter 13', async () => {
         const paraAsset = new Asset(1, sys_token.symbol)
         const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, user[1].name, 'Pay off all', currentTime.toString()).sig
 
         await check.ramTrace(() => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] })
         })
         const r_key = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
         chai.expect(r_key.rows.length).equal(2, 'Wrong amount of entries')
@@ -1500,7 +1641,7 @@ describe('SavPay', () => {
         endBase58: base58.encode(numberTouInt32(Math.round(currentTime + 2)).reverse()),
       }
     })
-    context('AA/10', async () => {
+    context('AB/10', async () => {
       it('should succeed to set one expireing and one finalized payment 1', async () => {
         // Set payments
         await check.ramTrace(async () => {
@@ -1583,11 +1724,11 @@ describe('SavPay', () => {
       })
       it('should fail to a name with no expired entries 7', async () => {
         const sig = signPayOffNewAcc(priKey1K1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName2, currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${pubKey1K1.toString()}!${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] }), 'No expired entries.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${pubKey1K1.toString()}=${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] }), 'No expired entries.')
       })
       it('should fail to a name with already existing account name 8', async () => {
         const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), user[0].name, currentTime.toString()).sig
-        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${user[0].name}&${pubKey1K1.toString()}`, { from: user[0] }), 'Account already exists.')
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[0].name}&${pubKey1K1.toString()}`, { from: user[0] }), 'Account already exists.')
       })
       it('should succeed with "ACC" parameter 9', async () => {
         // Wait until the time limits are expired
@@ -1596,7 +1737,7 @@ describe('SavPay', () => {
         const sig = signPayOffNewAcc(recipient0PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), newAccountName2, currentTime.toString()).sig
         await check.ramTrace(
           async () => {
-            return await sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}!${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] })
+            return await sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ACC@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${newAccountName2}&${pubKey1K1.toString()}`, { from: user[0] })
           },
           true,
           false
@@ -1639,6 +1780,23 @@ describe('SavPay', () => {
  */
 function signReject(privateKey: string, chainId: string, contract_name: string, from: string, id: string, sigtime: string) {
   const raw = `${chainId} ${contract_name} reject ${from} ${id} ${sigtime}`
+  return { raw: raw, sig: ecc.sign(raw, privateKey) }
+}
+
+/**
+ * Get the signature to extend a payment
+ *
+ * @param privateKey Key which signs the message
+ * @param chainId Id of the chain where the contarct is deployed to
+ * @param contract_name Contract name
+ * @param time New time limit
+ * @param to_hex Public key of the origin recipient in hex format
+ * @param id Payment id
+ * @param sigtime Current unix time of the signing
+ * @returns
+ */
+function signExtend(privateKey: string, chainId: string, contract_name: string, time: string, to_hex: string, id: string, sigtime: string) {
+  const raw = `${chainId} ${contract_name} extend ${time} ${to_hex} ${id} ${sigtime}`
   return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
 
@@ -1726,15 +1884,15 @@ function signPayOffNewAcc(privateKey: string, chainId: string, contract_name: st
 
 /**
  * Wait until a time stamp in seconds is reached + 100ms offset
- * @param time Unix time stamp in seconds
+ * @param timeStamp Unix time stamp in seconds
  */
-async function waitUntil(time: number) {
-  const msTime = time * 1000
+async function waitUntil(timeStamp: number) {
+  const msTime = timeStamp * 1000
   const currentMsTime = Date.now()
   const currentTimeForWait = Math.floor(currentMsTime / 1000)
-  if (currentTimeForWait < time + 0.5) {
-    console.log(`\nWait for ${time * 1000 - currentMsTime + 500} ms to reach time limit`)
-    await sleep(time * 1000 - currentMsTime + 500)
+  if (currentTimeForWait < timeStamp + 0.5) {
+    console.log(`\nWait for ${timeStamp * 1000 - currentMsTime + 500} ms to reach time limit`)
+    await sleep(timeStamp * 1000 - currentMsTime + 500)
   }
 }
 
@@ -1753,12 +1911,13 @@ async function waitUntil(time: number) {
 // Memo parameters:
 // from? @to !time ;memo? | :abstimmungen?
 // RAM@to !time | .relative_time
-// FIN@to_pub #id !sig_time ~sig
-// REJ@to_pub #id !sig_time ~sig
-// INV@to_pub #id !sig_time ~sig
-// OFF@to #id !sig_time ~sig +recipient
-// ALL@to_pub !sig_time ~sig +recipient
-// ACC@to_pub !sig_time ~sig +recipient &recipient_key?
+// FIN@to_pub #id =sig_time ~sig
+// REJ@to_pub #id =sig_time ~sig
+// INV@to_pub #id =sig_time ~sig
+// EXT@to #id !time =sig_time ~sig
+// OFF@to #id =sig_time ~sig +recipient
+// ALL@to_pub =sig_time ~sig +recipient
+// ACC@to_pub =sig_time ~sig +recipient &recipient_key?
 
 // Actions of the contract:
 // contract.finalize
