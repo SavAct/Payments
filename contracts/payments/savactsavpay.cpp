@@ -3,17 +3,23 @@
 void savactsavpay::setRam(const name& from, const name& to, const asset& fund, const uint32_t maxTime, const bool relative) {
     check(from != get_self(), "Can not buy RAM for the contract account.");
     check(is_account(from) && is_account(to), "Account does not exist.");
+    check(0 < maxTime, "Time hast to be greater than zero.");
+    if (!relative) {
+        check(eosio::current_time_point().sec_since_epoch() < maxTime, "Time stamp is already over.");
+    }
 
     // Buy RAM
     int64_t amount = EosioHandler::calcRamBytes(fund.amount);
     EosioHandler::buyram(get_self(), get_self(), fund);
 
-    ram_table _ram(get_self(), to.value);
-    auto itr = _ram.find(from.value);
 
-    if (!relative) {
-        check(eosio::current_time_point().sec_since_epoch() < maxTime, "Time stamp is already over.");
+    // Reduce the RAM amount by the needed RAM for the scope of this user if it is the first entry
+    ram_table _ram(get_self(), to.value);
+    if (_ram.begin() == _ram.end()) {
+        amount -= ram_scope;
     }
+
+    auto itr = _ram.find(from.value);
 
     if (itr == _ram.end()) {
         amount -= ram_ram_entry;   // Remove the amount for this entry
@@ -32,6 +38,7 @@ void savactsavpay::setRam(const name& from, const name& to, const asset& fund, c
         // Modify an entry
         _ram.modify(itr, get_self(), [&](auto& p) {
             p.amount += amount;
+            p.free += amount;
             p.maxTime = maxTime;
             p.relative = relative;
             });
@@ -60,8 +67,21 @@ ACTION savactsavpay::removeram(const name& from, const name& to) {
         ram_to_sell += ram_ram_entry;
     }
 
+
+    // Calc the nirvana amount for selling the RAM of the scope if this was the last entry
+    asset refund(0, System_Symbol);
+    if (!hasScope(_ram)) {
+        ram_to_sell += ram_scope;
+        refund.amount = EosioHandler::calcSellRamPrice(ram_to_sell);
+        asset scope_refund((refund.amount * ram_scope) / ram_to_sell, System_Symbol);
+        EosioHandler::transfer(get_self(), nirvana, scope_refund, "For last scope");
+        refund.amount -= scope_refund.amount;
+    }
+    else {
+        refund.amount = EosioHandler::calcSellRamPrice(ram_to_sell);
+    }
+
     // Sell the RAM
-    asset refund(EosioHandler::calcSellRamPrice(ram_to_sell), System_Symbol);
     EosioHandler::sellram(get_self(), ram_to_sell);
 
     // Send to owner

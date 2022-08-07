@@ -1,3 +1,4 @@
+import base58 = require('bs58')
 import { Serialize } from 'eosjs'
 import { PublicKey } from 'eosjs/dist/PublicKey'
 
@@ -22,18 +23,20 @@ export class Asset {
       return `${withZeros.substring(0, dotPos)}.${withZeros.substring(dotPos)} ${this.symbol.name}`
     }
   }
-
-  static From(assetStr: string) {}
 }
 
-export function numberTouInt32(num: number) {
+export function toUInt32ToBase58(n: number) {
+  return base58.encode(numberToUInt32(n).reverse())
+}
+
+export function numberToUInt32(num: number) {
   const arr = new ArrayBuffer(4)
   const view = new DataView(arr)
   view.setUint32(0, num)
   return new Uint8Array(arr)
 }
 
-export function numberTouInt64(big_num: bigint) {
+export function numberToUInt64(big_num: bigint) {
   const arr = new ArrayBuffer(8)
   const view = new DataView(arr)
   view.setBigUint64(0, big_num)

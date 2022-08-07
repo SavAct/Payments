@@ -19,7 +19,7 @@
 #define ram_scope 112                   // Consumed RAM for a new scope with 8 byte scope value
 #define ram_system_token_open_entry 240 // Consumed RAM to receive system tokens for the first time
 
-#define ram_ram_entry 141 // 112 + 29 // TODO: Should be messured
+#define ram_ram_entry 141 // 112 + 29 
 #define ram_data_entry 128
 
 #define expirationTime 86400 // 24h
@@ -167,7 +167,7 @@ public:
             str.append("; Id: ").append(to_string(p.id));
         }
         if (p.hasTime) {
-            str.append(p.relativeTime ? "; Relative time " : "; Time ").append(to_string(p.hasTime)).append(": ").append(to_string(p.time));
+            str.append(p.isTimeRelative ? "; Relative time " : "; Time ").append(to_string(p.hasTime)).append(": ").append(to_string(p.time));
         }
         if (p.hasRecipient) {
             str.append("; Recipient: ").append(p.recipient.to_string());
@@ -468,6 +468,16 @@ public:
      * @return false
      */
     static inline bool hasScope(const pay2key_table& table) {
+        return table.begin() != table.end();
+    }
+    /**
+     * @brief Check if a scope is already defined
+     *
+     * @param table Multi index table
+     * @return true
+     * @return false
+     */
+    static inline bool hasScope(const ram_table& table) {
         return table.begin() != table.end();
     }
 
@@ -1365,8 +1375,13 @@ public:
      */
     void buyAccount(const name& self, const public_key& pubkey, const name& account, asset& fund);
 
-    [[eosio::on_notify("eosio.token::transfer")]] void deposit(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, "eosio.token"_n);
+    [[eosio::on_notify("eosio.token::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
+        customDeposit(from, to, fund, memo, System_Token_Contract);
+    }
+
+    // Copy and edit this function to add a new token
+    [[eosio::on_notify("custom.token::transfer")]] void deposit_custom(const name& from, const name& to, const asset& fund, const string& memo) {
+        customDeposit(from, to, fund, memo, "custom.token"_n);
     }
 
     void customDeposit(const name& from, const name& to, const asset& fund, const string& memo, const name& token_contract) {
@@ -1382,7 +1397,7 @@ public:
                 // TODO: Add Mark for Vote by setting the firt byte to an invisible value
             }
             check(p.hasTime, "Missing time limit.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(!p.isTimeRelative, "Need an absolute time stamp.");
             if (p.hasFrom) {
                 pay(p.from, p.to, fund, token_contract, p.memo, p.time);
             }
@@ -1392,28 +1407,34 @@ public:
             }
         break;
         case Conversion::ActionType::RAM:
+            check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, 'RAM can only be bought via system token');
+            check(p.hasTo, "Missing beneficiary.");
             check(p.hasTime, "Missing time parameter.");
-            setRam(from, name(p.to), fund, p.time, p.relativeTime);
+            setRam(from, name(p.to), fund, p.time, p.isTimeRelative);
             break;
         case Conversion::ActionType::REJ:
+            check(p.hasTo, "Missing origin recipient public key.");
             check(p.hasId, "Missing id.");
             check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
             rejectsig(Conversion::String_to_public_key(p.to), p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::FIN:
+            check(p.hasTo, "Missing origin recipient.");
             check(p.hasId, "Missing id.");
             check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
             finalizesig(p.to, p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::INV:
+            check(p.hasTo, "Missing origin recipient.");
             check(p.hasId, "Missing id.");
             check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
             invalisig(p.to, p.id, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::OFF:
+            check(p.hasTo, "Missing origin recipient.");
             check(p.hasId, "Missing id.");
             check(p.hasSigTime, "Missing signature time.");
             check(p.hasSignature, "Missing signature.");
@@ -1421,14 +1442,15 @@ public:
             payoffsig(p.to, p.id, p.recipient, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::ALL:
+            check(p.hasTo, "Missing origin recipient public key.");
             check(p.hasSigTime, "Missing signature time time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(!p.isTimeRelative, "Need an absolute time stamp.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
-            check(p.hasTo, "Missing recipient public key.");
             payoffallsig(Conversion::String_to_public_key(p.to), token_contract, fund.symbol, p.recipient, p.memo, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::ACC:
+            check(p.hasTo, "Missing origin recipient public key.");
             check(p.hasSigTime, "Missing signature time time.");
             check(p.hasSignature, "Missing signature.");
             check(p.hasRecipient, "Missing recipient account.");
@@ -1436,10 +1458,11 @@ public:
             payoffnewacc(Conversion::String_to_public_key(p.to), p.recipientPublicKey, p.recipient, p.sigTime, p.sig);
             break;
         case Conversion::ActionType::EXT:
+            check(p.hasTo, "Missing origin recipient public key.");
             check(p.hasId, "Missing id.");
             check(p.hasTime, "Missing time parameter.");
             check(p.hasSigTime, "Missing signature time.");
-            check(!p.relativeTime, "Need an absolute time stamp.");
+            check(!p.isTimeRelative, "Need an absolute time stamp.");
             check(p.hasSignature, "Missing signature.");
             extendsig(Conversion::String_to_public_key(p.to), p.id, p.time, p.sigTime, p.sig);
             break;

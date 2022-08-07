@@ -360,7 +360,7 @@ public:
         bool hasMemo = false;
         bool hasVote = false;
         bool hasTime = false;
-        bool relativeTime = false;
+        bool isTimeRelative = false;
         bool hasId = false;
         bool hasSignature = false;
         bool hasSigTime = false;
@@ -491,7 +491,7 @@ public:
             break;
         case 1:
             // Relative time
-            p.relativeTime = true;
+            p.isTimeRelative = true;
         case 2:
             // Time
             uint32_t time;

@@ -85,6 +85,8 @@ export class Check {
               chai.expect(t.act.data.account).equal(this.contract.account.name, 'Wrong RAM seller')
               sum.sold += t.act.data.bytes
               ramlog += ` Sold ${t.act.data.bytes}`
+            } else if (t.act.name == 'buyram') {
+              ramlog += ` bought_for ${t.act.data.quant}`
             }
           }
         }
