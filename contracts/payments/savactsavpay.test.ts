@@ -41,6 +41,13 @@ console.log('K1', pubKey1K1.toString())
 console.log('R1', pubKey1R1.toString())
 const mainNetChainId = 'aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906'
 
+let inOneDay: number = Math.round(Date.now() / 1000 + 3600 * 24)
+let inTwoDays: number = Math.round(Date.now() / 1000 + 3600 * 24 * 2)
+let inOneDayBs58: string = toUInt32ToBase58(inOneDay)
+let inTwoDaysBs58: string = toUInt32ToBase58(inTwoDays)
+let sendAsset: Asset = new Asset(10000, sys_token_symbol)
+let sendAssetString: string = sendAsset.toString()
+
 function testContractIni() {
   describe('Initilaize system', () => {
     before(async () => {
@@ -83,10 +90,10 @@ function testContractIni() {
     // Set system token to accepted list
     context('set system token to accepted list', async () => {
       it('should fail with auth error 1', async () => {
-        await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: sys_token.contract.account }))
+        await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, true, { from: sys_token.contract.account }))
       })
       it('should succeed 2', async () => {
-        await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, { from: contract.account })
+        await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, true, { from: contract.account })
       })
       it('should update tokens table 3', async () => {
         let {
@@ -104,21 +111,8 @@ function testContractIni() {
 
 function testPaymentSystem() {
   describe('System token', () => {
-    let inOneDay: number
-    let inTwoDays: number
-    let inOneDayBs58: string
-    let inTwoDaysBs58: string
-    let sendAsset: Asset
-    let sendAssetString: string
-
     // Payment via on_notify transfer
     context('transfer via memo', async () => {
-      before(async () => {
-        inOneDay = Math.round(Date.now() / 1000 + 3600 * 24)
-        inOneDayBs58 = base58.encode(numberToUInt32(inOneDay).reverse())
-        sendAsset = new Asset(10000, sys_token.symbol)
-        sendAssetString = sendAsset.toString()
-      })
       context('B/10 from name to name', async () => {
         it('should fail with wrong auth 1', async () => {
           await assertMissingAuthority(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}.${inOneDayBs58}`, { from: user[1] }))
@@ -1422,7 +1416,6 @@ function testPaymentSystem() {
 
           await check.ramTrace(async () => {
             return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `EXT@${pubKey1K1.toString()}#${id4_Base58}!${inTwoDaysBs58}=${currentTimeBs58}~${sig}`, { from: user[0] })
-            // return contract.extendsig(pubKey1K1.toString(), 3, inOneDay, currentTime, sig, { from: user[1] })
           })
         })
       })
@@ -1773,28 +1766,44 @@ function testPaymentSystem() {
 
 function testRAMSettings() {
   let sendAsset: Asset
-  describe('RAM settings', () => {
+  let inOneDay: number
+  let inOneDayBs58: string
+  let RamUser3: number
+  let RamUser4: number
+  let contractAsset: Asset, nirvanaAsset: Asset, user3Asset: Asset, user4Asset: Asset, user5Asset: Asset
+  let smallAsset: Asset
+  let inOneHour: number
+  let inOneHourBs58: string
+  let forOneHour: number
+  let forOneHourBs58: string
+  let forOneDay: number
+  let forOneDayBs58: string
+  let offerer3_ram: { amount: number; free: number }
+  let offerer4_ram: { amount: number; free: number }
+  describe('RAM', () => {
     before(async () => {
       sendAsset = new Asset(1000, new Symbol('EOS', 4))
+      inOneHour = Math.floor(Date.now() / 1000) + 3600
+      inOneHourBs58 = toUInt32ToBase58(inOneHour)
+      inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
+      inOneDayBs58 = toUInt32ToBase58(inOneDay)
+      forOneHour = 3600
+      forOneHourBs58 = toUInt32ToBase58(forOneHour)
+      forOneDay = 3600 * 24
+      forOneDayBs58 = toUInt32ToBase58(forOneDay)
+      smallAsset = new Asset(200, sendAsset.symbol)
     })
 
     // Set system token to accepted list
-    context('contract initialization', async () => {
-      let inOneDay: number
-      let inOneDayBs58: string
+    context('offering', async () => {
       let for3Secs: number
       let for3SecsBs58: string
-      let RamUser3: number
-      let RamUser4: number
-      let contractAsset: Asset, nirvanaAsset: Asset, user3Asset: Asset, user4Asset: Asset, user5Asset: Asset
-      before(() => {
-        inOneDay = Math.round(Date.now() / 1000 + 3600 * 24)
-        inOneDayBs58 = toUInt32ToBase58(inOneDay)
+      before(async () => {
         for3Secs = 3
         for3SecsBs58 = toUInt32ToBase58(for3Secs)
       })
       // Set RAM
-      context('A/11 set RAM', async () => {
+      context('A/11', async () => {
         it('should fail with auth error 1', async () => {
           await assertMissingAuthority(sys_token.contract.transfer(user[0].name, contract.account.name, sendAsset.toString(), `RAM@${user[5].name}!${inOneDayBs58}`, { from: user[4] }))
         })
@@ -1876,10 +1885,12 @@ function testRAMSettings() {
           RamUser4 = Number(rows[0].amount)
         })
       })
-      // TODO: Remove RAM
-      context('B/6 remove RAM', async () => {
+    })
+    context('removing', async () => {
+      // Remove RAM
+      context('B/6', async () => {
         before(async () => {
-          ;[contractAsset, nirvanaAsset, user3Asset, user4Asset, user5Asset] = await getBalances([contract.account, nirvana, user[3], user[4], user[5]], sys_token)
+          ;[nirvanaAsset, user3Asset, user4Asset, user5Asset] = await getBalances([nirvana, user[3], user[4], user[5]], sys_token)
         })
         it('should fail with auth error 1', async () => {
           await assertEOSErrorIncludesMessage(contract.removeram(user[3].name, user[5].name, { from: user[4] }), 'You have no right to remove this entry.')
@@ -1901,7 +1912,7 @@ function testRAMSettings() {
           await assertEOSErrorIncludesMessage(contract.removeram(user[3].name, user[5].name, { from: user[5] }), 'Entry does not exist.')
         })
         it('should be paid correctly 6', async () => {
-          const [newContractAsset, newNirvanaAsset, newuser3Asset, newuser4Asset, newuser5Asset] = await getBalances([contract.account, nirvana, user[3], user[4], user[5]], sys_token)
+          const [newNirvanaAsset, newuser3Asset, newuser4Asset, newuser5Asset] = await getBalances([nirvana, user[3], user[4], user[5]], sys_token)
           // chai.expect(newContractAsset.amount - contractAsset.amount).equal(0, 'Wrong contract amount')
           chai.expect(newNirvanaAsset.amount - nirvanaAsset.amount).lessThan(50, 'Wrong nirvana amount')
           chai.expect(user3Asset.amount + 2 * sendAsset.amount - newuser3Asset.amount).lessThan(100, 'Wrong user 3 amount')
@@ -1909,9 +1920,196 @@ function testRAMSettings() {
           chai.expect(newuser5Asset.amount - user5Asset.amount).equal(0, 'Wrong user 5 amount')
         })
       })
-      // TODO: Transfer and check if everything sums up correctly
-      // TODO: Try to Edit and Remove used RAM
-      // TODO: Complete payments and check if the RAM is set back to free
+    })
+    context('editing', async () => {
+      // Edit used RAM
+      context('C/2 use RAM at first', async () => {
+        it('should succeed to add four different RAM offerer to user 5 1', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[0].name, contract.account.name, smallAsset.toString(), `RAM@${user[5].name}!${inOneHourBs58}`, { from: user[0] })
+          }, false)
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[1].name, contract.account.name, smallAsset.toString(), `RAM@${user[5].name}/${forOneHourBs58}`, { from: user[1] })
+          }, false)
+
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[3].name, contract.account.name, smallAsset.toString(), `RAM@${user[5].name}!${inOneDayBs58}`, { from: user[3] })
+          }, false)
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[4].name, contract.account.name, smallAsset.toString(), `RAM@${user[5].name}/${forOneDayBs58}`, { from: user[4] })
+          }, false)
+        })
+        it('should succeed to make four payments and lend RAM 2', async () => {
+          const sendStr = sendAsset.toString()
+          let boughtTimes = 0
+          let sumOfAllDeltaRAM = 0
+          for (let i = 0; i < 4; i++) {
+            const r = await check.ramTrace(async () => {
+              return sys_token.contract.transfer(user[0].name, contract.account.name, sendStr, `@${user[5].name}!${inOneDayBs58}:from user_0 to user_5 ${i}`, { from: user[0] })
+            }, false)
+            if (r.sum.bought > 0) {
+              sumOfAllDeltaRAM += r.sum.bought
+              boughtTimes++
+            }
+          }
+          chai.expect(boughtTimes).equal(1, 'Wrong number of payments which uses offered RAM')
+          const tr = await contract.ramTable({ scope: user[5].name })
+          const used_e0 = Number(tr.rows[0].amount) - Number(tr.rows[0].free)
+          const used_e1 = Number(tr.rows[1].amount) - Number(tr.rows[1].free)
+          const used_e2 = Number(tr.rows[2].amount) - Number(tr.rows[2].free)
+          const used_e3 = Number(tr.rows[3].amount) - Number(tr.rows[3].free)
+          chai.expect(sumOfAllDeltaRAM).lessThanOrEqual(used_e0 + used_e1 + used_e2 + used_e3, 'Wrong number of payments which uses offered RAM')
+          chai.expect(tr.rows[1].maxTime).greaterThanOrEqual(forOneHour, 'Wrong max time')
+          chai.expect(tr.rows[3].maxTime).greaterThanOrEqual(inOneHour, 'Wrong max time')
+          chai.expect(used_e1).equal(0, 'Wrong number of')
+          chai.expect(used_e3).equal(0, 'Wrong number of')
+          console.log(`Use of ${used_e0} RAM offered by ${tr.rows[0].from}`)
+          console.log(`Use of ${used_e2} RAM offered by ${tr.rows[2].from}`)
+
+          const rtp = await contract.pay2nameTable({ scope: user[5].name })
+          chai.expect(rtp.rows[0].ramBy).equal(tr.rows[0].from, 'Wrong user mentioned for RAM in payment table')
+          chai.expect(rtp.rows[1].ramBy).equal(tr.rows[2].from, 'Wrong user mentioned for RAM in payment table')
+          chai.expect(rtp.rows[2].ramBy).equal(tr.rows[2].from, 'Wrong user mentioned for RAM in payment table')
+          chai.expect(rtp.rows[3].ramBy).equal(contract.account.name, 'Contract account is not mentioned for RAM in payment table')
+
+          chai.expect(rtp.rows[0].fund).equal(sendStr, 'Reduced token amount')
+          chai.expect(rtp.rows[1].fund).equal(sendStr, 'Reduced token amount')
+          chai.expect(rtp.rows[2].fund).equal(sendStr, 'Reduced token amount')
+          chai.expect(stringToAsset(rtp.rows[3].fund).amount).lessThan(sendAsset.amount, 'Should have sold some token for RAM')
+        })
+      })
+      context('D/3 edit entries', async () => {
+        before(async () => {
+          ;[contractAsset, nirvanaAsset, user3Asset, user4Asset, user5Asset] = await getBalances([contract.account, nirvana, user[3], user[4], user[5]], sys_token)
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+          offerer3_ram = { amount: Number(item.amount), free: Number(item.free) }
+          chai.expect(offerer3_ram.amount - offerer3_ram.free != 0).equal(true, 'Equal RAM amount')
+        })
+        it('succeed to change to a relative earlier time 1', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[3].name, contract.account.name, sendAsset.toString(), `RAM@${user[5].name}/${forOneHourBs58}`, { from: user[3] })
+          }, false)
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+          chai.expect(item.maxTime).equal(forOneHour, 'Wrong time')
+          chai.expect(item.relative).equal(true, 'Not relative')
+          chai.expect(item.amount).greaterThan(offerer3_ram.amount, 'Got no new RAM')
+          chai.expect(Number(item.amount) - offerer3_ram.amount).equal(Number(item.free) - offerer3_ram.free, 'Got unequal new RAM')
+          offerer3_ram.amount = Number(item.amount)
+          offerer3_ram.free = Number(item.free)
+        })
+        it('succeed to change to a absolute earlier time 2', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[3].name, contract.account.name, sendAsset.toString(), `RAM@${user[5].name}!${inOneHourBs58}`, { from: user[3] })
+          }, false)
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+          chai.expect(item.maxTime).equal(inOneHour, 'Wrong time')
+          chai.expect(item.relative).equal(false, 'Is relative')
+          chai.expect(item.amount).greaterThan(offerer3_ram.amount, 'Got no new RAM')
+          chai.expect(Number(item.amount) - offerer3_ram.amount).equal(Number(item.free) - offerer3_ram.free, 'Got unequal new RAM')
+          offerer3_ram.amount = Number(item.amount)
+          offerer3_ram.free = Number(item.free)
+        })
+        it('should succeed to remove remaining free RAM 3', async () => {
+          await check.ramTrace(async () => {
+            return contract.removeram(user[3].name, user[5].name, { from: user[3] })
+          })
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+          chai.expect(item.maxTime).equal(inOneHour, 'Time changed')
+          chai.expect(item.relative).equal(false, 'Relative changed')
+          chai.expect(item.free).equal(0, 'Not sold any free RAM')
+          chai.expect(item.amount).equal(offerer3_ram.amount - offerer3_ram.free, 'Sold not only used RAM')
+          offerer3_ram.amount = Number(item.amount)
+          offerer3_ram.free = Number(item.free)
+        })
+      })
+      context('E/6 complete payments', async () => {
+        before(async () => {
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[4].name })
+          offerer4_ram = { amount: Number(item.amount), free: Number(item.free) }
+          chai.expect(offerer4_ram.amount - offerer4_ram.free != 0).equal(true, 'Equal RAM amount')
+          offerer4_ram.amount = Number(item.amount)
+          offerer4_ram.free = Number(item.free)
+        })
+        it('should fail to finalize without token entry 1', async () => {
+          await assertEOSErrorIncludesMessage(contract.finalize(user[5].name, 0, { from: user[0] }), 'The user has no entry for this token.')
+        })
+        it('should succeed to open a token entry 2', async () => {
+          await sys_token.contract.open(user[5].name, sys_token.symbol.toString(), user[5].name, { from: user[5] })
+        })
+        it('should succeed to finalize and to return RAM excluded RAM for scope 3', async () => {
+          await check.ramTrace(async () => {
+            return contract.finalize(user[5].name, 0, { from: user[0] })
+          })
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[4].name })
+          chai.expect(item.free).greaterThan(offerer4_ram.free, 'Got no RAM back')
+          chai.expect(Number(item.free) - Number(item.amount)).lessThan(0, 'Whole or more than available RAM is free')
+          offerer4_ram.amount = Number(item.amount)
+          offerer4_ram.free = Number(item.free)
+        })
+        it('should succeed to invalidate a payment and return the RAM to user 3 4', async () => {
+          await check.ramTrace(async () => {
+            return contract.invalidate(user[5].name, 1, { from: user[0] })
+          })
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+          chai.expect(item.free).greaterThan(offerer3_ram.free, 'Got no RAM back')
+          chai.expect(Number(item.free) - Number(item.amount)).lessThan(0, 'Whole or more than available RAM is free')
+          offerer3_ram.amount = Number(item.amount)
+          offerer3_ram.free = Number(item.free)
+          // Check by the way other entries as well of this offerer
+          chai.expect(item.maxTime).equal(inOneHour, 'Time changed')
+          chai.expect(item.relative).equal(false, 'Relative changed')
+        })
+        it('should succeed to reject a payment and return the RAM 5', async () => {
+          await check.ramTrace(async () => {
+            return contract.reject(user[5].name, 2, { from: user[5] })
+          })
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[3].name })
+
+          console.log('item.amount', item.amount)
+          console.log('offerer3_ram.amount', offerer3_ram.amount)
+
+          chai.expect(item.amount).equal(offerer3_ram.amount, 'Total RAM amount changed')
+          chai.expect(Number(item.amount) - Number(item.free)).equal(0, 'Got not all offered RAM back')
+          offerer3_ram.amount = Number(item.amount)
+          offerer3_ram.free = Number(item.free)
+          // Check by the way other entries as well of this offerer
+          chai.expect(item.maxTime).equal(inOneHour, 'Time changed')
+          chai.expect(item.relative).equal(false, 'Relative changed')
+        })
+        it('should succeed to finalize last payment and return RAM for scope 6', async () => {
+          await check.ramTrace(async () => {
+            return contract.finalize(user[5].name, 3, { from: user[0] })
+          })
+          const {
+            rows: [item],
+          } = await contract.ramTable({ scope: user[5].name, limit: 1, lowerBound: user[4].name })
+          chai.expect(item.amount).equal(offerer4_ram.amount, 'Total RAM amount changed')
+          chai.expect(Number(item.amount) - Number(item.free)).equal(0, 'Got not all offered RAM back')
+        })
+      })
+      context('E/6 extend payment', async () => {
+        // TODO:
+        // Set two payments
+        // Extend both payments and check if RAM payer correspond
+        // Should fail to extend both to an unusable limit
+        // Extend both and check if old got RAM back and new ones got selected
+      })
     })
   })
 }
@@ -1919,6 +2117,10 @@ function testRAMSettings() {
 testContractIni()
 testPaymentSystem()
 testRAMSettings()
+
+//TODO: Check if payment with custom token fails with disabled token
+//TODO: Check if payment with custom token fails without any offered RAM
+//TODO: Pay custom token with offered RAM
 
 /**
  * Get the signature to reject a payment

@@ -152,6 +152,7 @@ export interface SavactsavpaySettoken {
 	tokenContract: string|number;
 	tokenSymbol: string;
 	openBytes: number;
+	active: boolean;
 }
 
 export interface SavactsavpayTestaddpay {
@@ -185,6 +186,7 @@ export interface SavactsavpayTestsetram {
 export interface SavactsavpayTokens {
 	token: string;
 	openBytes: number;
+	active: boolean;
 }
 
 // Added Types
@@ -210,7 +212,7 @@ export interface Savactsavpay extends Contract {
 	rejectsig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removeram(from: string|number, to: string|number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken(tokenContract: string|number, tokenSymbol: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testaddpay(from: string, to: string, fund: string, token_contract: string|number, memo: string, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testdeposit(from: string|number, to: string|number, fund: string, memo: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testmemo(memo: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -233,7 +235,7 @@ export interface Savactsavpay extends Contract {
 	rejectsig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removeram_object_params(params: {from: string|number, to: string|number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken_object_params(params: {tokenContract: string|number, tokenSymbol: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	settoken_object_params(params: {tokenContract: string|number, tokenSymbol: string, openBytes: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	settoken_object_params(params: {tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testaddpay_object_params(params: {from: string, to: string, fund: string, token_contract: string|number, memo: string, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testdeposit_object_params(params: {from: string|number, to: string|number, fund: string, memo: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	testmemo_object_params(params: {memo: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;

@@ -49,6 +49,7 @@ private:
     {
         symbol token;
         uint32_t openBytes;
+        bool active;
         auto primary_key() const { return token.raw(); }
     };
     typedef multi_index<name("tokens"), tokens> tokens_table;
@@ -225,8 +226,9 @@ public:
      * @param tokenContract Contract name of the token
      * @param tokenSymbol Symbol of the token
      * @param openBytes Bytes of RAM to open an entry for an account name. For the eosio.token contract of 2022 it is 240 Byte
+     * @param active Should initial payments with this token be accepted
      */
-    ACTION settoken(const name& tokenContract, const symbol& tokenSymbol, const uint32_t openBytes);
+    ACTION settoken(const name& tokenContract, const symbol& tokenSymbol, const uint32_t openBytes, bool active);
 
     /**
      * @brief Remove a token from accepted token list.
@@ -318,7 +320,7 @@ public:
      * @param sym Symbol of the token
      * @param memo Memo entry
      */
-    static uint32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo);
+    static uint32_t getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo, const bool forPayIn = false);
 
     /**
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -423,16 +425,16 @@ public:
     vector<char> getSenderVecFrom(const string& user);
 
     /**
-     * @brief Check if the token is allowed.
+     * @brief Check if the token is allowed for payout
      *
      * @param self This contract
      * @param token_contract Token contract name
      * @param tokensymbol Symbol of the token
      * @returns true if the token is allowed
      */
-    static bool isTokenAccepted(const name& self, const name& token_contract, const symbol& tokensymbol);
+    static bool isTokenAcceptedPayOut(const name& self, const name& token_contract, const symbol& tokensymbol);
     /**
-     * @brief Check if the token is allowed and get the amount of needed RAM to open an entry on the token contract for a new user.
+     * @brief Check if the token is allowed for payout and get the amount of needed RAM to open an entry on the token contract for a new user.
      *
      * @param self This contract
      * @param token_contract Token contract name
@@ -440,7 +442,18 @@ public:
      * @param rambytes Obtains the amount of bytes to open an entry for a new user
      * @returns true if the token is allowed
      */
-    static bool isTokenAccepted(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t& rambytes);
+    static bool isTokenAcceptedPayOut(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t& rambytes);
+
+    /**
+     * @brief Check if the token is allowed for incoming payments and get the amount of needed RAM to open an entry on the token contract for a new user.
+     *
+     * @param self This contract
+     * @param token_contract Token contract name
+     * @param tokensymbol Symbol of the token
+     * @param rambytes Obtains the amount of bytes to open an entry for a new user
+     * @returns true if the token is allowed
+     */
+    static bool isTokenAcceptedPayIn(const name& self, const name& token_contract, const symbol& tokensymbol, uint32_t& rambytes);
 
     /**
      * @brief Get the eosio multi index storage size of a string (only up to 34,359,738,367 characters)
@@ -1229,7 +1242,7 @@ public:
 
         // RAM for recieving the first system token
         uint32_t ram_open_system_token;
-        isTokenAccepted(get_self(), System_Token_Contract, System_Symbol, ram_open_system_token);
+        isTokenAcceptedPayOut(get_self(), System_Token_Contract, System_Symbol, ram_open_system_token);
         freeRAM -= ram_open_system_token;
 
         // Sell or buy RAM
