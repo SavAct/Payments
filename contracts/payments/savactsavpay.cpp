@@ -204,7 +204,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         }
         else
         {
-            // The first entry on data table needs RAM which will never be withdrawel
+            // The first entry on data table needs RAM which will never be withdrawn
             if (index == 0) {
                 auto itr_never_back = getFreeRAMPayer(ram_data_entry, currentTime, currentTime, _ram);
                 _ram.modify(itr_never_back, get_self(), [&](auto& p) {
@@ -504,7 +504,7 @@ name savactsavpay::changeRamOfferer(const name& self, const name& to, const pay2
             check(newRamBy_itr != _ram.end(), "No RAM payer for this time span.");
 
             // Free RAM of previous RAM payer
-            freeRamUsage(self, usedRAM, _ram, newRamBy_itr);
+            freeRamUsage(self, usedRAM, _ram, byRam_itr);
             // Set RAM of new RAM payer as in use 
             setRamUsage(self, usedRAM, _ram, newRamBy_itr);
 
