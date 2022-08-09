@@ -196,11 +196,8 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
 
             // RAM will be payed by the funds
             ram_payer = get_self();
-
-            // Buy needed RAM and reduce the fund amount accordingly
-            fund.amount -= EosioHandler::calcRamPrice(neededRAM);
-            EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
-
+            // Check if fund is system token, buy needed RAM and reduce the fund amount accordingly
+            buyRamAndReduceFund(get_self(), token_contract, neededRAM, fund);
         }
         else
         {
@@ -227,7 +224,6 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     }
     else
     {
-
         // Recipient is a key
         auto to_key = Conversion::String_to_public_key(to);
 
@@ -249,9 +245,8 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
             neededRAM += ram_data_entry;
         }
 
-        // Buy needed RAM and reduce the fund amount accordingly
-        fund.amount -= EosioHandler::calcRamPrice(neededRAM);
-        EosioHandler::buyrambytes(get_self(), get_self(), neededRAM);
+        // Check if fund is system token, buy needed RAM and reduce the fund amount accordingly
+        buyRamAndReduceFund(get_self(), token_contract, neededRAM, fund);
 
         // Add payment to table
         addpayment(_pay2key, index, fromVec, to_vec, fund, token_contract, memo, time, get_self());
@@ -671,4 +666,11 @@ void savactsavpay::checkTime(uint32_t time) {
         check(time != 1, "Payment is already finalized.");
         check(false, "Time limit is already expired.");
     }
+}
+
+void savactsavpay::buyRamAndReduceFund(const name& self, const name& token_contract, const int32_t neededRAM, asset& fund) {
+    check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, "Cannot buy RAM with other tokens than system token.");
+    // Buy needed RAM and reduce the fund amount accordingly
+    fund.amount -= EosioHandler::calcRamPrice(neededRAM);
+    EosioHandler::buyrambytes(self, self, neededRAM);
 }

@@ -60,9 +60,22 @@ function testContractIni() {
 
       // Create accounts
       nirvana = await AccountManager.createAccount(nirvana_name)
-      user = [await AccountManager.createAccount('user.zero'), await AccountManager.createAccount('user.one'), await AccountManager.createAccount('user.two'), await AccountManager.createAccount('user.three'), await AccountManager.createAccount('user.four'), await AccountManager.createAccount('user.five')]
-      if (!user[0].publicKey || !user[0].privateKey || !user[1].publicKey || !user[1].privateKey || !user[2].publicKey || !user[2].privateKey || !user[3].publicKey || !user[3].privateKey || !user[4].publicKey || !user[4].privateKey || !user[5].publicKey || !user[5].privateKey) {
-        throw 'No key for user'
+      user = [
+        await AccountManager.createAccount('user.zero'),
+        await AccountManager.createAccount('user.one'),
+        await AccountManager.createAccount('user.two'),
+        await AccountManager.createAccount('user.three'),
+        await AccountManager.createAccount('user.four'),
+        await AccountManager.createAccount('user.five'),
+        await AccountManager.createAccount('user.six'),
+        await AccountManager.createAccount('user.seven'),
+        await AccountManager.createAccount('user.eight'),
+      ]
+      // Check if all keys are available
+      for (let u of user) {
+        if (!u.publicKey || !u.privateKey) {
+          throw 'No key for ' + u.name
+        }
       }
 
       // Issue system tokens
@@ -71,15 +84,7 @@ function testContractIni() {
         contract: await ContractLoader.at<EosioToken>(sys_token_acc),
         symbol: sys_token_symbol,
       }
-      await issueToken(sys_token, [nirvana, user[0], user[1], user[3], user[4]], 10000000, EOSManager.adminAccount) // No tokens for user[2] and user[5] on purpose
-
-      // Deploy, initialize and issue a custom token
-      custom_token = {
-        contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'fiat.token'),
-        symbol: new Symbol('FIAT', 2),
-      }
-      await initToken(custom_token)
-      await issueToken(custom_token, [user[1], user[2]], 10000)
+      await issueToken(sys_token, [nirvana, user[0], user[1], user[3], user[4], user[6], user[7]], 10000000, EOSManager.adminAccount) // No tokens for user[2], user[5] and user[8] on purpose
 
       // Deploy SavPay and set eosio.code permission
       contract = await ContractDeployer.deployWithName<Savactsavpay>('contracts/payments/savactsavpay', savpay_contract_name)
@@ -111,6 +116,42 @@ function testContractIni() {
 
 function testPaymentSystem() {
   describe('System token', () => {
+    context('accept settings', async () => {
+      context('A/6 add system token', async () => {
+        it('should fail to deactivate with auth error 1', async () => {
+          await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, false, { from: sys_token.contract.account }))
+        })
+        it('should succeed to deactivate it 2', async () => {
+          await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, false, { from: contract.account })
+        })
+        it('should update tokens table 3', async () => {
+          let {
+            rows: [item],
+          } = await contract.tokensTable({ scope: sys_token.contract.account.name })
+          chai.expect(item.token).equal(sys_token.symbol.toString(), 'Wrong token contract')
+          chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+          chai.expect(item.active).equal(false, 'Token is still accepted')
+        })
+        it('should fail to send payment 4', async () => {
+          await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}!${inOneDayBs58}`, { from: user[0] }), 'Token is not accepted.')
+        })
+        it('should fail to activate with auth error 5', async () => {
+          await assertMissingAuthority(contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, true, { from: sys_token.contract.account }))
+        })
+        it('should succeed to activate it 6', async () => {
+          await contract.settoken(sys_token.contract.account.name, sys_token.symbol.toString(), 240, true, { from: contract.account })
+        })
+        it('should update tokens table 7', async () => {
+          let {
+            rows: [item],
+          } = await contract.tokensTable({ scope: sys_token.contract.account.name })
+          chai.expect(item.token).equal(sys_token.symbol.toString(), 'Wrong token contract')
+          chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+          chai.expect(item.active).equal(true, 'Token is still not accepted')
+        })
+      })
+    })
+
     // Payment via on_notify transfer
     context('transfer via memo', async () => {
       context('B/10 from name to name', async () => {
@@ -2170,25 +2211,159 @@ function testRAMSettings() {
           const rtp = await contract.pay2nameTable({ scope: user[5].name })
           chai.expect(rtp.rows[1].ramBy).equal(user[0].name, 'Wrong RAM offerer')
           const tr = await contract.ramTable({ scope: user[5].name })
-
           chai.expect(tr.rows[3].amount != tr.rows[3].free).equal(true, 'Not lend RAM')
           chai.expect(tr.rows[2].amount == tr.rows[2].free).equal(true, 'RAM was not given back')
         })
         it('should fail with not available time limit 6', async () => {
           assertEOSErrorIncludesMessage(contract.extend(user[5].name, 5, sys_token.contract.account.name, inTwoDays + 1, { from: user[5] }), 'No RAM payer for this time span.')
         })
+        it('should succeed to remove all RAM offerer 7', async () => {
+          await check.ramTrace(async () => {
+            return contract.finalize(user[5].name, 4, { from: user[0] })
+          })
+          await check.ramTrace(async () => {
+            return contract.finalize(user[5].name, 5, { from: user[0] })
+          })
+          await check.ramTrace(async () => {
+            return contract.removeram(user[0].name, user[5].name, { from: user[0] })
+          })
+          await check.ramTrace(async () => {
+            return contract.removeram(user[1].name, user[5].name, { from: user[1] })
+          })
+          await check.ramTrace(async () => {
+            return contract.removeram(user[3].name, user[5].name, { from: user[5] })
+          })
+          await check.ramTrace(async () => {
+            return contract.removeram(user[4].name, user[5].name, { from: user[5] })
+          })
+          const tr = await contract.ramTable({ scope: user[5].name })
+          chai.expect(tr.rows.length).equal(0, 'There are still RAM offerer')
+        })
       })
     })
+  })
+}
+
+function testCustomToken() {
+  let sendAsset: Asset
+  let inOneDay: number
+  let inOneDayBs58: string
+  let contractAsset: Asset, nirvanaAsset: Asset, user3Asset: Asset, user4Asset: Asset, user5Asset: Asset
+  let smallAsset: Asset
+  let inOneHour: number
+  let inOneHourBs58: string
+  let forOneHour: number
+  let forOneHourBs58: string
+  let forOneDay: number
+  let forOneDayBs58: string
+  describe('RAM', () => {
+    before(async () => {
+      sendAsset = new Asset(1000, new Symbol('EOS', 4))
+      inOneHour = Math.floor(Date.now() / 1000) + 3600
+      inOneHourBs58 = toUInt32ToBase58(inOneHour)
+      inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
+      inOneDayBs58 = toUInt32ToBase58(inOneDay)
+      forOneHour = 3600
+      forOneHourBs58 = toUInt32ToBase58(forOneHour)
+      forOneDay = 3600 * 24
+      forOneDayBs58 = toUInt32ToBase58(forOneDay)
+      smallAsset = new Asset(200, sendAsset.symbol)
+      sendAssetString = sendAsset.toString()
+
+      // Deploy, initialize and issue a custom token called FIAT
+      custom_token = {
+        contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'custom.token'),
+        symbol: new Symbol('FIAT', 2),
+      }
+      await initToken(custom_token)
+      await issueToken(custom_token, [user[1], user[2]], 10000)
+    })
+    context('A/7 add custom token', async () => {
+      it('should fail to deactivate with auth error 1', async () => {
+        await assertMissingAuthority(contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, false, { from: sys_token.contract.account }))
+      })
+      it('should succeed to deactivate it 2', async () => {
+        await contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, false, { from: contract.account })
+      })
+      it('should update tokens table 3', async () => {
+        let {
+          rows: [item],
+        } = await contract.tokensTable({ scope: custom_token.contract.account.name })
+        chai.expect(item.token).equal(custom_token.symbol.toString(), 'Wrong token contract')
+        chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+        chai.expect(item.active).equal(false, 'Token is still accepted')
+      })
+      it('should fail to send a payment 4', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should fail to activate with auth error 5', async () => {
+        await assertMissingAuthority(contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, true, { from: custom_token.contract.account }))
+      })
+      it('should succeed to activate it 6', async () => {
+        await contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, true, { from: contract.account })
+      })
+      it('should update tokens table 7', async () => {
+        let {
+          rows: [item],
+        } = await contract.tokensTable({ scope: custom_token.contract.account.name })
+        chai.expect(item.token).equal(custom_token.symbol.toString(), 'Wrong token contract')
+        chai.expect(item.openBytes).equal(240, 'Wrong byte number to open a token entry per user')
+        chai.expect(item.active).equal(true, 'Token is still not accepted')
+      })
+    })
+    context('B/9 payment', async () => {
+      let sendBigAssetString: string
+      before(() => {
+        sendBigAssetString = new Asset(10000, sys_token.symbol).toString()
+      })
+      it('should fail to send with no offered RAM 1', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should fail to add RAM via wrong contract RAM 2', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should fail to add RAM via wrong symbol RAM 3', async () => {
+        let sA = new Asset(sendAsset.amount, custom_token.symbol)
+        await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sA.toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should fail to send a payment with no offered RAM 4', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should succed to add a small amount of RAM 5', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, new Asset(150, sys_token.symbol).toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+        }, false)
+      })
+      it('should fail to send a payment with not enough offered RAM 6', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should succeed to add a big amount of RAM 7', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, new Asset(10000, sys_token.symbol).toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+        }, false)
+      })
+      it('should succeed 8', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendBigAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+        }, false)
+      })
+      it('should check tables 9', async () => {
+        const r_ram = await contract.ramTable({ scope: user[8].name })
+        chai.expect(Number(r_ram.rows[0].free)).lessThan(Number(r_ram.rows[0].amount), 'RAM is not used')
+        const r_pay = await contract.pay2nameTable({ scope: user[8].name })
+        chai.expect(r_pay.rows[0].fund).equal(sendBigAssetString, 'Wrong asset')
+        chai.expect(r_pay.rows[0].ramBy).equal(r_ram.rows[0].from, 'Wrong RAM offerer')
+      })
+    })
+
+    // TODO: finalize, expire, reject, extend and payoff payment of custom token by tracking RAM table
   })
 }
 
 testContractIni()
 testPaymentSystem()
 testRAMSettings()
-
-//TODO: Check if payment with custom token fails with disabled token
-//TODO: Check if payment with custom token fails without any offered RAM
-//TODO: Pay custom token with offered RAM
+testCustomToken()
 
 /**
  * Get the signature to reject a payment

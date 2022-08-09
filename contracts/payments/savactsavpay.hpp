@@ -1388,14 +1388,32 @@ public:
      */
     void buyAccount(const name& self, const public_key& pubkey, const name& account, asset& fund);
 
+    /**
+     * @brief Buy a defined number of RAM bytes and reduce the fund amount accordingly
+     *
+     * @param self This contract
+     * @param token_contract Token contract name of the fund token symbol
+     * @param neededRAM Number of RAM bytes to buy
+     * @param fund Available funds to buy the resources
+     */
+    static void buyRamAndReduceFund(const name& self, const name& token_contract, const int32_t neededRAM, asset& fund);
+
+    // System token
     [[eosio::on_notify("eosio.token::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
         customDeposit(from, to, fund, memo, System_Token_Contract);
     }
 
+    // SavAct token
+    [[eosio::on_notify("token.savact::transfer")]] void deposit_savact(const name& from, const name& to, const asset& fund, const string& memo) {
+        customDeposit(from, to, fund, memo, "token.savact"_n);
+    }
+
     // Copy and edit this function to add a new token
+    // Change custom.token to the token contract name
     [[eosio::on_notify("custom.token::transfer")]] void deposit_custom(const name& from, const name& to, const asset& fund, const string& memo) {
         customDeposit(from, to, fund, memo, "custom.token"_n);
     }
+
 
     void customDeposit(const name& from, const name& to, const asset& fund, const string& memo, const name& token_contract) {
         // Filter everything except incoming

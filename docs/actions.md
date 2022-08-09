@@ -295,11 +295,12 @@ After the deployment of the contract the tokens can be activated with the `setto
 
 ## Add a token to accepted list
 
-| Action          | `settoken(tokenContract, tokenSymbol, openBytes)`                                                                                                    |
+| Action          | `settoken(tokenContract, tokenSymbol, openBytes, active)`                                                                                            |
 | :-------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tokenContract` | Token contract account name                                                                                                                          |
 | `tokenSymbol`   | Symbol of the token which cantains the symbol name and prescission number                                                                            |
 | `openBytes`     | Number of RAM bytes which are needed to open a token entry of a new user. For example the open action on the eosio.token contract consumes 240 bytes |
+| `active`        | Boolean to accept or dismiss incoming payments of this token                                                                                         |
 
 ## Remove a token from accepted list
 
