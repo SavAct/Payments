@@ -683,7 +683,7 @@ public:
             from_str = from.to_string();
 
             // Get released RAM amount
-            auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
+            auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
 
             // Pay back including the RAM
             sendWithRAM(get_self(), from, itr->contract, itr->fund, "Pay back", freeRAM);
@@ -999,6 +999,7 @@ public:
             auto itr = _pay2name.find(id);
 
             if (itr->time == 0) {
+                // Payoff a sender where the sender and recipient is an account name 
                 // Check if from is an account name
                 check(itr->from.size() == 8, "Payment is rejected, but sender is not an account name.");
 
@@ -1014,11 +1015,12 @@ public:
             }
             else
             {
+                // Payoff a sender where the recipient account name where the sender is an account name or public key
                 // Check if the time has expired
                 check(eosio::current_time_point().sec_since_epoch() > itr->time, "The time limit has not expired, yet.");
 
                 // Get released RAM amount
-                int32_t freeRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo);
+                int32_t freeRAM = getRamForPayment(get_self(), itr->from.size() == 8, true, itr->contract, itr->fund.symbol, itr->memo);
 
                 // Send the payment to the origin recipient and handle RAM
                 sendTokenHandleRAM(get_self(), to_name, itr->ramBy, to_name, itr->contract, itr->fund, itr->memo, freeRAM);
@@ -1028,6 +1030,7 @@ public:
         }
         else
         {
+            // Payoff a sender where the sender is an account name and the recipient is a public key
             // Find entry
             uint64_t scope;
             public_key to_key = Conversion::String_to_public_key(to);

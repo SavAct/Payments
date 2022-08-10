@@ -1821,7 +1821,7 @@ function testRAMSettings() {
   let offerer4_ram: { amount: number; free: number }
   describe('RAM', () => {
     before(async () => {
-      sendAsset = new Asset(1000, new Symbol('EOS', 4))
+      sendAsset = new Asset(1000, sys_token.symbol)
       inOneHour = Math.floor(Date.now() / 1000) + 3600
       inOneHourBs58 = toUInt32ToBase58(inOneHour)
       inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
@@ -2245,6 +2245,8 @@ function testRAMSettings() {
 }
 
 function testCustomToken() {
+  let sendCustom: Asset
+  let sendCustomString: string
   let sendAsset: Asset
   let inOneDay: number
   let inOneDayBs58: string
@@ -2256,9 +2258,12 @@ function testCustomToken() {
   let forOneHourBs58: string
   let forOneDay: number
   let forOneDayBs58: string
-  describe('RAM', () => {
+
+  let inTwoSecs: number
+  let inTwoSecsBs58: string
+  describe('Custom token', () => {
     before(async () => {
-      sendAsset = new Asset(1000, new Symbol('EOS', 4))
+      sendAsset = new Asset(1000, sys_token.symbol)
       inOneHour = Math.floor(Date.now() / 1000) + 3600
       inOneHourBs58 = toUInt32ToBase58(inOneHour)
       inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
@@ -2276,7 +2281,10 @@ function testCustomToken() {
         symbol: new Symbol('FIAT', 2),
       }
       await initToken(custom_token)
-      await issueToken(custom_token, [user[1], user[2]], 10000)
+      await issueToken(custom_token, [user[0], user[6], user[7]], 10000000)
+
+      sendCustom = new Asset(100, custom_token.symbol)
+      sendCustomString = sendCustom.toString()
     })
     context('A/7 add custom token', async () => {
       it('should fail to deactivate with auth error 1', async () => {
@@ -2311,52 +2319,145 @@ function testCustomToken() {
         chai.expect(item.active).equal(true, 'Token is still not accepted')
       })
     })
-    context('B/9 payment', async () => {
+    context('B/12 payment', async () => {
+      let ramBefore: SavactsavpayRam
       let sendBigAssetString: string
-      before(() => {
+      before(async () => {
         sendBigAssetString = new Asset(10000, sys_token.symbol).toString()
       })
-      it('should fail to send with no offered RAM 1', async () => {
-        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      it('should succeed to open custom token entry of payments contract 1', async () => {
+        await check.ramTrace(async () => {
+          return custom_token.contract.open(contract.account.name, custom_token.symbol.toString(), user[0].name, { from: user[0] })
+        })
       })
-      it('should fail to add RAM via wrong contract RAM 2', async () => {
+      it('should fail to send with no offered RAM 2', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'Not enough RAM offered for this recipient.')
+      })
+      it('should fail to add RAM via wrong contract RAM 3', async () => {
         await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
       })
-      it('should fail to add RAM via wrong symbol RAM 3', async () => {
+      it('should fail to add RAM via wrong symbol RAM 4', async () => {
         let sA = new Asset(sendAsset.amount, custom_token.symbol)
         await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sA.toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
       })
-      it('should fail to send a payment with no offered RAM 4', async () => {
-        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      it('should fail to send a payment with no offered RAM 5', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'Not enough RAM offered for this recipient.')
       })
-      it('should succed to add a small amount of RAM 5', async () => {
+      it('should succed to add a small amount of RAM 6', async () => {
         await check.ramTrace(async () => {
           return sys_token.contract.transfer(user[0].name, contract.account.name, new Asset(150, sys_token.symbol).toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
         }, false)
       })
-      it('should fail to send a payment with not enough offered RAM 6', async () => {
-        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      it('should fail to send a payment with not enough offered RAM 7', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] }), 'Not enough RAM offered for this recipient.')
       })
-      it('should succeed to add a big amount of RAM 7', async () => {
+      it('should succeed to add a big amount of RAM 8', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, new Asset(10000, sys_token.symbol).toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, sendBigAssetString, `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
         }, false)
+        ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
       })
-      it('should succeed 8', async () => {
+      it('should succeed name to name 9', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, sendBigAssetString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
         }, false)
-      })
-      it('should check tables 9', async () => {
-        const r_ram = await contract.ramTable({ scope: user[8].name })
-        chai.expect(Number(r_ram.rows[0].free)).lessThan(Number(r_ram.rows[0].amount), 'RAM is not used')
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+
         const r_pay = await contract.pay2nameTable({ scope: user[8].name })
-        chai.expect(r_pay.rows[0].fund).equal(sendBigAssetString, 'Wrong asset')
-        chai.expect(r_pay.rows[0].ramBy).equal(r_ram.rows[0].from, 'Wrong RAM offerer')
+        chai.expect(r_pay.rows[0].fund).equal(sendCustomString, 'Wrong asset')
+        chai.expect(r_pay.rows[0].ramBy).equal(user[0].name, 'Wrong RAM offerer')
+      })
+      it('should succeed name to name with short time limit 10', async () => {
+        inTwoSecs = Math.floor(Date.now() / 1000) + 2
+        inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58}:from user 0 to user 8 with time limit of two seconds 1`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed key to name 11', async () => {
+        const veryLongMemo = 'from k1 to user 8 2 | very looooooooooooooooooooooooooooooooooooooooooooooooooonnnnnnnnnnggggggg eeeeeeeeeeeeeeeeeeeeennnnnnnnnnnntttttttttttrrrrrrrrrrryyyyyyyyyyyyyyyyyyyy!!!!!!'
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:${veryLongMemo}`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed key to name with short time limit 12', async () => {
+        inTwoSecs = Math.floor(Date.now() / 1000) + 2
+        inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inTwoSecsBs58}: from k1 to user 8 3`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
     })
+    context('C/9 complete to origin recipient', async () => {
+      let ramBefore: SavactsavpayRam
+      before(async () => {
+        ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
+      })
+      it('should fail to finish without recipient token entry 1', async () => {
+        await assertEOSErrorIncludesMessage(contract.finalize(user[8].name, 0, { from: user[0] }), 'The user has no entry for this token.')
+      })
+      it('should succeed to open custom token entry of the recipient 2', async () => {
+        await check.ramTrace(async () => {
+          return custom_token.contract.open(user[8].name, custom_token.symbol.toString(), user[0].name, { from: user[0] })
+        })
+      })
+      it('should succeed to finish name to name 3', async () => {
+        await check.ramTrace(async () => {
+          return contract.finalize(user[8].name, 0, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
 
-    // TODO: finalize, expire, reject, extend and payoff payment of custom token by tracking RAM table
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(3, 'Wrong number of entries in pay2name table')
+      })
+      it('should succeed to finish key to name 4', async () => {
+        const sigTime = Math.floor(Date.now() / 1000)
+        const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.name, user[8].name, (2).toString(), sigTime.toString()).sig
+        await check.ramTrace(async () => {
+          return contract.finalizesig(user[8].name, 2, sigTime, sig, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
+      })
+      it('should succeed to payout expired name to name 5', async () => {
+        await waitUntil(inTwoSecs - Date.now() / 1000)
+        await check.ramTrace(async () => {
+          return contract.payoff(user[8].name, 1, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(1, 'Wrong number of entries in pay2name table')
+      })
+      it('should succeed to payout expired key to name 6', async () => {
+        await check.ramTrace(async () => {
+          return contract.payoff(user[8].name, 3, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+      })
+      it('should succeed to make a payment 7', async () => {
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed to finalize this last payment in table 8', async () => {
+        await check.ramTrace(async () => {
+          return contract.finalize(user[8].name, 4, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'No RAM returned')
+      })
+    })
+    // TODO: reject, extend payment of custom token by tracking RAM table
   })
 }
 
@@ -2492,6 +2593,28 @@ async function waitUntil(timeStamp: number) {
     console.log(`\nWait for ${timeStamp * 1000 - currentMsTime + 500} ms to reach time limit`)
     await sleep(timeStamp * 1000 - currentMsTime + 500)
   }
+}
+
+/**
+ * Check and log the used or consumed RAM
+ * @param ramBeforeEntry Last RAM table entry
+ * @param scope RAM recipient user
+ * @param from RAM offerer
+ * @returns
+ */
+async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean, scope: string, from: string | undefined = undefined, nowEqual: boolean = false) {
+  const ramEntry = (await contract.ramTable({ scope, limit: 1, lowerBound: from })).rows[0]
+  const foreverConsumed = Number(ramBeforeEntry.amount) - Number(ramEntry.amount)
+  if (recduced) {
+    console.log('For ever consumed RAM', foreverConsumed)
+    console.log('Used RAM', Number(ramBeforeEntry.free) - foreverConsumed - Number(ramEntry.free))
+    chai.expect(Number(ramEntry.free)).lessThan(Number(ramBeforeEntry.free), 'No RAM used')
+  } else {
+    console.log('For ever consumed RAM', foreverConsumed)
+    console.log('Retuned RAM', Number(ramEntry.free) - Number(ramBeforeEntry.free) + foreverConsumed)
+    chai.expect(Number(ramEntry.free)).greaterThan(Number(ramBeforeEntry.free), 'No RAM returned')
+  }
+  return ramEntry
 }
 
 // TODO: Write tests for every case

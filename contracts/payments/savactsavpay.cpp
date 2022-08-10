@@ -523,13 +523,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
         if (std::equal(to_vec.begin(), to_vec.end(), itr->to.begin()) && itr->fund.symbol == fund.symbol && itr->time != 0 && itr->time < currenttime && itr->contract == token_contract) {
             fund += itr->fund;
             itr = _pay2key.erase(itr);
-            if (itr->from.size() == 8) {
-                freeRAM += getRamForPayment(self, true, false, token_contract, fund.symbol, itr->memo);
-            }
-            else
-            {
-                freeRAM += getRamForPayment(self, false, false, token_contract, fund.symbol, itr->memo);
-            }
+            freeRAM += getRamForPayment(self, itr->from.size() == 8, false, token_contract, fund.symbol, itr->memo);
             foundEntries = true;
         }
         else
@@ -554,14 +548,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const n
     bool foundEntries = false;
     while (itr != _pay2name.end()) {
         if (itr->fund.symbol == fund.symbol && itr->time != 0 && itr->time < currenttime && itr->contract == token_contract) {
-            int tempFree;
-            if (itr->from.size() == 8) {
-                tempFree = getRamForPayment(self, true, true, token_contract, fund.symbol, itr->memo);
-            }
-            else
-            {
-                tempFree = getRamForPayment(self, false, true, token_contract, fund.symbol, itr->memo);
-            }
+            int tempFree = getRamForPayment(self, itr->from.size() == 8, true, token_contract, fund.symbol, itr->memo);
             if (itr->ramBy != self) {
                 auto ram_itr = _ram.find(itr->ramBy.value);
                 check(ram_itr != _ram.end(), "RAM entry does not exist.");  // This cannot happen, just for double checking
@@ -669,7 +656,7 @@ void savactsavpay::checkTime(uint32_t time) {
 }
 
 void savactsavpay::buyRamAndReduceFund(const name& self, const name& token_contract, const int32_t neededRAM, asset& fund) {
-    check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, "Cannot buy RAM with other tokens than system token.");
+    check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, "Not enough RAM offered for this recipient.");
     // Buy needed RAM and reduce the fund amount accordingly
     fund.amount -= EosioHandler::calcRamPrice(neededRAM);
     EosioHandler::buyrambytes(self, self, neededRAM);
