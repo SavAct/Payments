@@ -2439,6 +2439,7 @@ function testCustomToken() {
           return contract.payoff(user[8].name, 3, { from: user[0] })
         })
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'Not all RAM returned')
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
@@ -2454,10 +2455,108 @@ function testCustomToken() {
           return contract.finalize(user[8].name, 4, { from: user[0] })
         })
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
-        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'No RAM returned')
+        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'Not all RAM returned')
       })
     })
-    // TODO: reject, extend payment of custom token by tracking RAM table
+    context('D/11 reject', async () => {
+      let ramBefore: SavactsavpayRam
+      before(async () => {
+        ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
+      })
+      it('should succeed two name to name 1', async () => {
+        inTwoSecs = Math.floor(Date.now() / 1000) + 2
+        inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 5`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 6`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed two key to name 2', async () => {
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 7`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 8`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed to reject name to name 3', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[8].name, 5, { from: user[8] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+      })
+      it('should succeed to reject name to name 4', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[8].name, 6, { from: user[8] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
+      })
+      it('should succeed to reject key to name 5', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[8].name, 7, { from: user[8] })
+        })
+      })
+      it('should succeed to reject key to name 6', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[8].name, 8, { from: user[8] })
+        })
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
+      })
+      it('should fail to payout rejected key to name without open token 7', async () => {
+        const sigtime = Math.floor(Date.now() / 1000)
+        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[3].name, (7).toString(), sigtime.toString()).sig
+        assertEOSErrorIncludesMessage(contract.payoffsig(user[8].name, 7, user[3].name, sigtime, sig, { from: user[0] }), 'The user has no entry for this token.')
+      })
+      it('should succeed to payout rejected key to name 8', async () => {
+        const sigtime = Math.floor(Date.now() / 1000)
+        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[0].name, (7).toString(), sigtime.toString()).sig
+        await check.ramTrace(async () => {
+          return contract.payoffsig(user[8].name, 7, user[0].name, sigtime, sig, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(1, 'Wrong number of entries in pay2name table')
+      })
+      it('should succeed to payout last rejected key to name 9', async () => {
+        const sigtime = Math.floor(Date.now() / 1000)
+        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[0].name, (8).toString(), sigtime.toString()).sig
+        await check.ramTrace(async () => {
+          return contract.payoffsig(user[8].name, 8, user[0].name, sigtime, sig, { from: user[0] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'Not all RAM returned')
+      })
+      it('should succeed to make a payment 10', async () => {
+        await check.ramTrace(async () => {
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
+        }, false)
+        ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+      })
+      it('should succeed to reject this last payment in table 11', async () => {
+        await check.ramTrace(async () => {
+          return contract.reject(user[8].name, 9, { from: user[8] })
+        })
+        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+        chai.expect(Number(ramBefore.free)).equal(Number(ramBefore.amount), 'Not all RAM returned')
+        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
+        chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+      })
+    })
+    // TODO: extend payment of custom token by tracking RAM table payoutall
   })
 }
 
