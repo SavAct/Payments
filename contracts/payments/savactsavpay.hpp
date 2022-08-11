@@ -470,7 +470,7 @@ public:
      * @return true
      * @return false
      */
-    static bool hasScope(const pay2name_table& table) {
+    static inline bool hasScope(const pay2name_table& table) {
         return table.begin() != table.end();
     }
     /**
@@ -672,7 +672,7 @@ public:
         // Check the parameters
         check(itr != _pay2key.end(), "Entry does not exist.");
         check(itr->to == to_vec, "Wrong public key."); // Check the recipient
-        int32_t neededRam = 0;
+        int32_t neededRam(0);
         string from_str;
 
         // Reject the payment
@@ -1162,7 +1162,7 @@ public:
      * @param memo Memo for the transaction to the recipient
      * @param freeRAM Amount of RAM which will be available after erasing the payment entry
      */
-    static void sendWithRAM(const name& self, const name& recipient, const name& token_contract, const asset& fund, const string& memo, int32_t freeRAM);
+    static void sendWithRAM(const name& self, const name& recipient, const name& token_contract, const asset& fund, const string& memo, int freeRAM);
 
     /**
      * @brief Send system token to the recipient with the fund from selling an amount of RAM
@@ -1182,6 +1182,15 @@ public:
             EosioHandler::transfer(self, recipient, system_token_fund, memo);
         }
     }
+
+    /**
+     * @brief Handle the RAM after deleting the last entry of a scope by sending it back to RAM table
+     *
+     * @param self This contract
+     * @param to Origin recipient of the payment
+     * @return true if the RAM was returned to the RAM offerer, false if no suitable offerer was found
+     */
+    static inline bool scopeRamForOfferer(const name& self, const name& to);
 
     /**
      * @brief Handle the RAM after deleting the last entry of a scope by sending it back to RAM table otherwise to nirvana
@@ -1244,7 +1253,7 @@ public:
         int32_t freeRAM = getAndRemovesExpiredBalancesOfKey(to, System_Token_Contract, fund, currentTime, get_self());
 
         // RAM for recieving the first system token
-        uint32_t ram_open_system_token;
+        uint32_t ram_open_system_token(0);
         isTokenAcceptedPayOut(get_self(), System_Token_Contract, System_Symbol, ram_open_system_token);
         freeRAM -= ram_open_system_token;
 
@@ -1271,7 +1280,7 @@ public:
             EosioHandler::sellram(self, bytes);
         }
         else if (bytes < 0) {
-            int32_t neededRAM = -bytes;
+            int32_t neededRAM(-bytes);
             fund.amount -= EosioHandler::calcRamPrice(neededRAM);
             EosioHandler::buyrambytes(self, self, neededRAM);
         }

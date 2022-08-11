@@ -126,7 +126,7 @@ ACTION savactsavpay::removetoken(const name& tokenContract, const symbol& tokenS
 }
 
 uint32_t savactsavpay::getRamForPayment(const name& self, bool isName_From, bool isName_To, const name& token_contract, const symbol& sym, const string& memo, const bool forPayIn) {
-    uint32_t ramToOpenEntry;
+    uint32_t ramToOpenEntry(0);
     if (forPayIn) {
         check(isTokenAcceptedPayIn(self, token_contract, sym, ramToOpenEntry), "Token is not accepted.");
     }
@@ -274,7 +274,7 @@ void savactsavpay::sendTokenHandleRAM(const name& self, const name& to, const na
     }
 }
 
-void savactsavpay::handleScopeRam(const name& self, const name& to) {
+bool savactsavpay::scopeRamForOfferer(const name& self, const name& to) {
     // Find the last RAM offerer and send him this RAM amount
     ram_table _ram(self, to.value);
     for (auto itr = _ram.begin(); itr != _ram.end(); ++itr) {
@@ -282,11 +282,18 @@ void savactsavpay::handleScopeRam(const name& self, const name& to) {
             _ram.modify(itr, self, [&](auto& p) {
                 p.free += ram_scope;
                 });
-            return;
+            return true;
         }
     }
-    // Otherwise sell and send it to nirvana
-    sendRamAndSysFundDirect(self, ram_scope, nirvana, asset(0, System_Symbol), std::string("Rest of RAM"));
+    return false;
+}
+
+void savactsavpay::handleScopeRam(const name& self, const name& to) {
+    // Find the last RAM offerer and send him this RAM amount
+    if (!scopeRamForOfferer(self, to)) {
+        // Otherwise sell and send it to nirvana
+        sendRamAndSysFundDirect(self, ram_scope, nirvana, asset(0, System_Symbol), std::string("Rest of RAM"));
+    }
 }
 
 void savactsavpay::handleScopeRam(const name& self) {
@@ -310,6 +317,7 @@ void savactsavpay::eraseItr(const name& self, pay2key_table& table, pay2key_tabl
 void savactsavpay::sendWithRAM(const name& self, const name& recipient, const name& token_contract, const asset& fund, const string& memo, int32_t freeRAM) {
     // If the account has not an entry for the token, then create one
     freeRAM -= openTokenRowAndGetRAM(token_contract, recipient, fund.symbol, self);
+    check(freeRAM >= 0, "Not enough RAM to open token row.");
 
     if (token_contract != System_Token_Contract || fund.symbol != System_Symbol) {
         // Is not the system token
@@ -324,12 +332,13 @@ void savactsavpay::sendWithRAM(const name& self, const name& recipient, const na
         else
         {
             // User has no system token row, so create one if there is enough RAM
-            uint32_t ram_open_system_token;
+            uint32_t ram_open_system_token(0);
             isTokenAcceptedPayOut(self, System_Token_Contract, System_Symbol, ram_open_system_token);
             if (freeRAM >= ram_open_system_token) {
                 // Create system token row for the recipient
                 EosioHandler::openToken(System_Token_Contract, recipient, System_Symbol, self);
                 freeRAM -= ram_open_system_token;
+                check(freeRAM >= 0, "Not enough RAM to open token row.");
 
                 // Send system token from RAM to recipient
                 sendRamAndSysFundDirect(self, freeRAM, recipient, asset(0, System_Symbol), std::string("Amount for RAM"));
@@ -375,7 +384,7 @@ int32_t savactsavpay::openTokenRowAndGetRAM(const name& token_contract, const na
     // Check if user has not an accounts entry for the contract token
     if (!EosioHandler::hasOpenTokenRow(token_contract, user, fund_symbol)) {
         EosioHandler::openToken(token_contract, user, fund_symbol, self);
-        uint32_t bytes;
+        uint32_t bytes(0);
         isTokenAcceptedPayOut(self, token_contract, fund_symbol, bytes);
         return bytes;
     }
@@ -516,15 +525,19 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfKey(const public_key& to_pub
     pay2key_table _pay2key(self, scope);
 
     // Find each expired entry and sum up the funds and RAM which will be free
-    int32_t freeRAM = 0;
+    int32_t freeRAM(0);
     auto itr = _pay2key.begin();
     bool foundEntries = false;
     while (itr != _pay2key.end()) {
         if (std::equal(to_vec.begin(), to_vec.end(), itr->to.begin()) && itr->fund.symbol == fund.symbol && itr->time != 0 && itr->time < currenttime && itr->contract == token_contract) {
             fund += itr->fund;
-            itr = _pay2key.erase(itr);
             freeRAM += getRamForPayment(self, itr->from.size() == 8, false, token_contract, fund.symbol, itr->memo);
             foundEntries = true;
+
+            itr = _pay2key.erase(itr);
+            if (!hasScope(_pay2key)) {
+                freeRAM += ram_scope;
+            }
         }
         else
         {
@@ -543,7 +556,7 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const n
     ram_table _ram(self, to.value);
 
     // Find each expired entry and sum up the funds and RAM which will be free
-    int32_t freeRAM = 0;
+    int32_t freeRAM(0);
     auto itr = _pay2name.begin();
     bool foundEntries = false;
     while (itr != _pay2name.end()) {
@@ -555,10 +568,18 @@ int32_t savactsavpay::getAndRemovesExpiredBalancesOfName(const name& to, const n
                 _ram.modify(ram_itr, self, [&](auto& p) {
                     p.free += tempFree;
                     });
+                if (onlyOneEntry(_pay2name)) {
+                    if (!scopeRamForOfferer(self, to)) {
+                        freeRAM += ram_scope;
+                    }
+                }
             }
             else
             {
                 freeRAM += tempFree;
+                if (onlyOneEntry(_pay2name)) {
+                    freeRAM += ram_scope;
+                }
             }
             fund += itr->fund;
             itr = _pay2name.erase(itr);
