@@ -2260,6 +2260,8 @@ function testCustomToken() {
   let ramBefore: SavactsavpayRam
   let inTwoSecs: number
   let inTwoSecsBs58: string
+  let balanceUser0: { name: string; system: number; custom: number }
+  let balanceUser8: { name: string; system: number; custom: number }
   describe('Custom token', () => {
     before(async () => {
       sendAsset = new Asset(1000, sys_token.symbol)
@@ -2392,6 +2394,7 @@ function testCustomToken() {
     context('C/9 complete to origin recipient', async () => {
       before(async () => {
         ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
+        balanceUser8 = await getSystemAndCustomBalances(user[8].name)
       })
       it('should fail to finish without recipient token entry 1', async () => {
         await assertEOSErrorIncludesMessage(contract.finalize(user[8].name, 0, { from: user[0] }), 'The user has no entry for this token.')
@@ -2409,6 +2412,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(3, 'Wrong number of entries in pay2name table')
+
+        checkAndAddCustomBalance(balanceUser8, sendAsset.amount)
       })
       it('should succeed to finish key to name 4', async () => {
         const sigTime = Math.floor(Date.now() / 1000)
@@ -2646,6 +2651,44 @@ testContractIni()
 testPaymentSystem()
 testRAMSettings()
 testCustomToken()
+
+async function checkAndAddSystemBalance(user: { name: string; system: number; custom: number }, experctDelta: number) {
+  const delta = (await getSystemBalanceAsset(user.name)).amount - user.system
+  chai.expect(delta).equal(experctDelta, 'Wrong amount of system token for ' + user)
+  user.system += delta
+}
+
+async function checkAndAddCustomBalance(user: { name: string; system: number; custom: number }, experctDelta: number) {
+  const delta = (await getCustomBalanceAsset(user.name)).amount - user.custom
+  chai.expect((await getCustomBalanceAsset(user.name)).amount).equal(experctDelta, 'Wrong amount of system token for ' + user)
+  user.custom += delta
+}
+
+async function getSystemBalanceAsset(user: string) {
+  const r = await sys_token.contract.accountsTable({ scope: user })
+  if (r.rows.length == 0) {
+    return new Asset(0, sys_token.symbol)
+  } else {
+    return stringToAsset(r.rows[0].balance)
+  }
+}
+
+async function getCustomBalanceAsset(user: string) {
+  const r = await custom_token.contract.accountsTable({ scope: user })
+  if (r.rows.length == 0) {
+    return new Asset(0, custom_token.symbol)
+  } else {
+    return stringToAsset(r.rows[0].balance)
+  }
+}
+
+async function getSystemAndCustomBalances(user: string) {
+  return {
+    name: user,
+    system: (await getSystemBalanceAsset(user)).amount,
+    custom: (await getCustomBalanceAsset(user)).amount,
+  }
+}
 
 /**
  * Get the signature to reject a payment
