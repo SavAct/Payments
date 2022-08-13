@@ -60,6 +60,7 @@ export interface SavactsavpayPay2key {
 	time: number;
 	memo: string;
 	ramBy: string|number;
+	type: number;
 }
 
 export interface SavactsavpayPay2name {
@@ -70,6 +71,7 @@ export interface SavactsavpayPay2name {
 	time: number;
 	memo: string;
 	ramBy: string|number;
+	type: number;
 }
 
 export interface SavactsavpayPayoff {

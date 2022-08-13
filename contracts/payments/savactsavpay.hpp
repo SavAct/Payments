@@ -13,10 +13,10 @@
 #include "eosioHandler.hpp"
 
 // Consumed RAM without scope and without memo
-#define ram_pay2name_entry_from_name 165 // Name to name 53 + 112 bytes new entry
-#define ram_pay2name_entry_from_key 191  // Key to name 79 + 112 bytes new entry
-#define ram_pay2key_entry_from_name 192  // Name to key 80 + 112 bytes new entry
-#define ram_pay2key_entry_from_key 218   // Key to key 106 bytes + 112 bytes new entry
+#define ram_pay2name_entry_from_name 166 // Name to name 54 + 112 bytes new entry
+#define ram_pay2name_entry_from_key 192  // Key to name 80 + 112 bytes new entry
+#define ram_pay2key_entry_from_name 193  // Name to key 81 + 112 bytes new entry
+#define ram_pay2key_entry_from_key 219   // Key to key 107 bytes + 112 bytes new entry
 
 #define ram_scope 112                   // Consumed RAM for a new scope with 8 byte scope value
 #define ram_system_token_open_entry 240 // Consumed RAM to receive system tokens for the first time
@@ -69,6 +69,7 @@ private:
         uint32_t time;     // 4 bytes
         string memo;       // variable bytes
         name ramBy;        // 8 bytes
+        uint8_t type;      // 1 byte
         auto primary_key() const { return id; }
     };
     typedef multi_index<name("pay2name"), pay2name> pay2name_table;
@@ -87,6 +88,7 @@ private:
         uint32_t time;     // 4 bytes
         string memo;       // variable bytes
         name ramBy;        // 8 bytes
+        uint8_t type;      // 1 byte
         auto primary_key() const { return id; }
     };
     typedef multi_index<name("pay2key"), pay2key> pay2key_table;
@@ -118,6 +120,8 @@ private:
         auto primary_key() const { return from.value; }
     };
     typedef multi_index<name("ram"), ram> ram_table;
+
+    enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 };
 
 public:
     using contract::contract;
@@ -233,8 +237,9 @@ public:
      * @param token_contract Token contract of the asset
      * @param memo Memo
      * @param time Time limit
+     * @param is_vote True if this transaction is a vote
      */
-    void pay(const name& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
+    void pay(const name& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote = false);
 
     /**
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -245,8 +250,9 @@ public:
      * @param token_contract Token contract of the asset
      * @param memo Memo
      * @param time Time limit
+     * @param is_vote True if this transaction is a vote
      */
-    void pay(const string& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
+    void pay(const string& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote = false);
 
     /**
      * @brief Make a payment where sender and recipent can be a name or a public key.
@@ -257,8 +263,9 @@ public:
      * @param token_contract Token contract of the asset
      * @param memo Memo
      * @param time Time limit
+     * @param is_vote True if this transaction is a vote
      */
-    void pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time);
+    void pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote = false);
 
     /**
      * @brief Find a RAM payer. RAM cannot be sum up by several RAM payers.
@@ -295,7 +302,7 @@ public:
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer);
+    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
     /**
      * @brief Add a payment to pay2key-table.
      *
@@ -308,7 +315,7 @@ public:
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer);
+    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
 
     /**
      * @brief Get the sender (user) as char vector and check if the sender is valid
@@ -1319,7 +1326,6 @@ public:
     // Notification of withdrawn and deposited tokens
     [[eosio::on_notify("*::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
         check(fund.is_valid(), "invalid quantity");
-        check(memo.size() <= 256, "memo has more than 256 bytes");
         check(fund.amount > 0, "must transfer positive quantity");
         customDeposit(from, to, fund, memo);
     }
@@ -1336,17 +1342,14 @@ public:
         auto p = Conversion::GetParams(memo); // Get all parameters of the memo
         switch (p.actionType) {
         case Conversion::ActionType::PAY:
-            if (p.hasVote) {
-                // TODO: Add Mark for Vote by setting the firt byte to an invisible value
-            }
             check(p.hasTime, "Missing time limit.");
             check(!p.isTimeRelative, "Need an absolute time stamp.");
             if (p.hasFrom) {
-                pay(p.from, p.to, fund, token_contract, p.memo, p.time);
+                pay(p.from, p.to, fund, token_contract, p.memo, p.time, p.hasVote);
             }
             else
             {
-                pay(from, p.to, fund, token_contract, p.memo, p.time);
+                pay(from, p.to, fund, token_contract, p.memo, p.time, p.hasVote);
             }
         break;
         case Conversion::ActionType::RAM:

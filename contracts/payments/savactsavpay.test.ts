@@ -180,6 +180,7 @@ function testPaymentSystem() {
           chai.expect(item.memo).equal('', 'There should no memo be defined')
           chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
           chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
+          chai.expect(item.type).equal(0, 'Type is not payment type')
         })
         it('should succeed with several signs in memo 4', async () => {
           await check.ramTrace(() => {
@@ -255,6 +256,7 @@ function testPaymentSystem() {
             }
             chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
             chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
+            chai.expect(item.type).equal(0, 'Type is not payment type')
           }
           testPay2NameTable(item1, 0)
           testPay2NameTable(item2, 1)
@@ -316,6 +318,7 @@ function testPaymentSystem() {
             chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
             chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
             chai.expect(item.to).equal(splitKey1K1.tableVec, 'Wrong recipient pub key')
+            chai.expect(item.type).equal(0, 'Type is not payment type')
           }
           testPay2KeyTable(item1, 0)
           testPay2KeyTable(item2, 1)
@@ -385,6 +388,7 @@ function testPaymentSystem() {
             chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
             chai.expect(item.time).equal(inOneDay, 'Wrong timestamp')
             chai.expect(item.to).equal(splitKey3K1.tableVec, 'Wrong recipient pub key')
+            chai.expect(item.type).equal(0, 'Type is not payment type')
           }
           testPay2KeyTable(item1, 0)
           testPay2KeyTable(item2, 1)
@@ -1087,7 +1091,7 @@ function testPaymentSystem() {
         // Key to key
         it('should succeed from key to key payment 6', async () => {
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}:key_K1 to key_user_2`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58};key_K1 to key_user_2`, { from: user[0] })
           })
         })
         it('should succeed rejection from key to key payment with "REJ" parameter 7', async () => {
@@ -1257,7 +1261,7 @@ function testPaymentSystem() {
         // Send and invalidate payment from name to key
         it('should succeed from name to key payment 1', async () => {
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[1].name}@${recipient2PubK1}!${inOneDayBs58}:user1 to K1_of_Recipient2`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[1].name}@${recipient2PubK1}!${inOneDayBs58};user1 to K1_of_Recipient2`, { from: user[0] })
           })
           user0Asset.amount -= sendAsset.amount
         })
@@ -1348,16 +1352,16 @@ function testPaymentSystem() {
         it('should succeed to set some payments 1', async () => {
           // Set some more payments
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${user[1].name}!${inOneDayBs58}: ex from user_0 to user_1 #4`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${pubKey1K1.toString()}@${user[1].name}!${inOneDayBs58}; ex from user_0 to user_1 #4`, { from: user[0] })
           })
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${user[1].name}!${in8Secs.endBase58}: ex from user_0 to user_1 #5`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${user[1].name}!${in8Secs.endBase58}; ex from user_0 to user_1 #5`, { from: user[0] })
           })
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${inOneDayBs58}:ex from user_0 to k1 #3`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${inOneDayBs58};ex from user_0 to k1 #3`, { from: user[0] })
           })
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${in8Secs.endBase58}:ex from user_0 to k1 #4`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY@${pubKey1K1.toString()}!${in8Secs.endBase58};ex from user_0 to k1 #4`, { from: user[0] })
           })
           ;[contractAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, user[0], user[1], user[2]], sys_token)
           const nameRows = (await contract.pay2nameTable({ scope: user[1].name })).rows
@@ -1479,28 +1483,28 @@ function testPaymentSystem() {
         it('should succeed to set some payments 1', async () => {
           // Set payments
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${inOneDayBs58}:from user1 0`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${inOneDayBs58};from user1 0`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 1`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58};from user1 1`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[0].name}!${inOneDayBs58}:from K1 key 2`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[0].name}!${inOneDayBs58};from K1 key 2`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58}:from user1 3`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${user[0].name}!${in3Secs.endBase58};from user1 3`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 2`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58};from user 1 to key_0 2`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in3Secs.endBase58}:from user 1 to key_0 3`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in3Secs.endBase58};from user 1 to key_0 3`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 4`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58};from user 1 to key_0 4`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient0PubK1.toString()}!${inOneDayBs58}:from K1 to key_0 5`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${recipient0PubK1.toString()}!${inOneDayBs58};from K1 to key_0 5`, { from: user[0] })
           })
         })
         it('should succeed to finalize and reject some payments 2', async () => {
@@ -1612,10 +1616,10 @@ function testPaymentSystem() {
             endBase58: base58.encode(numberToUInt32(Math.round(currentTime + 2)).reverse()),
           }
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 6`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58};from user 1 to key_0 6`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 7`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58};from user 1 to key_0 7`, { from: user[0] })
           })
           await check.ramTrace(async () => {
             return contract.finalize(recipient0PubK1.toString(), 7, { from: user[1] })
@@ -1638,14 +1642,14 @@ function testPaymentSystem() {
         })
         it('should fail with wrong signature 12', async () => {
           const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, 'newernewuser', 'Pay off all', currentTime.toString()).sig
-          await shouldFail(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] }))
+          await shouldFail(sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name};Pay off all`, { from: user[0] }))
         })
         it('should succeed on key table with "ALL" parameter 13', async () => {
           const paraAsset = new Asset(1, sys_token.symbol)
           const sig = signPayOffAll(recipient0PriK1.toString(), mainNetChainId, contract.account.name, sys_token.contract.account.name, sys_token.symbol, user[1].name, 'Pay off all', currentTime.toString()).sig
 
           await check.ramTrace(() => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name}:Pay off all`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, paraAsset.toString(), `ALL@${recipient0PubK1.toString()}=${currentTimeBase58}~${sig}+${user[1].name};Pay off all`, { from: user[0] })
           })
           const r_key = await contract.pay2keyTable({ scope: recipient0Split.scope.toString() })
           chai.expect(r_key.rows.length).equal(2, 'Wrong amount of entries')
@@ -1678,10 +1682,10 @@ function testPaymentSystem() {
         it('should succeed to set one expireing and one finalized payment 1', async () => {
           // Set payments
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 8`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58};from user 1 to key_0 8`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 9`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58};from user 1 to key_0 9`, { from: user[0] })
           })
           await check.ramTrace(async () => {
             return contract.finalize(recipient0PubK1.toString(), 8, { from: user[1] })
@@ -1740,10 +1744,10 @@ function testPaymentSystem() {
 
           // Set payments
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58}:from user 1 to key_0 10`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${inOneDayBs58};from user 1 to key_0 10`, { from: user[0] })
           })
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58}:from user 1 to key_0 11`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${user[1].name}@${recipient0PubK1.toString()}!${in2Secs.endBase58};from user 1 to key_0 11`, { from: user[0] })
           })
           await check.ramTrace(async () => {
             return contract.finalize(recipient0PubK1.toString(), 10, { from: user[1] })
@@ -1982,7 +1986,7 @@ function testRAMSettings() {
           let sumOfAllDeltaRAM = 0
           for (let i = 0; i < 4; i++) {
             const r = await check.ramTrace(async () => {
-              return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneDayBs58}:from user_0 to user_5 ${i}`, { from: user[0] })
+              return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneDayBs58};from user_0 to user_5 ${i}`, { from: user[0] })
             }, false)
             if (r.sum.bought > 0) {
               sumOfAllDeltaRAM += r.sum.bought
@@ -2163,10 +2167,10 @@ function testRAMSettings() {
         })
         it('should succeed to execute two payments and lend RAM 2', async () => {
           const r1 = await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneHourBs58}:from user_0 to user_5 ${4}`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneHourBs58};from user_0 to user_5 ${4}`, { from: user[0] })
           }, false)
           const r2 = await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneHourBs58}:from user_0 to user_5 ${5}`, { from: user[0] })
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[5].name}!${inOneHourBs58};from user_0 to user_5 ${5}`, { from: user[0] })
           }, false)
           chai.expect(r1.sum.bought == 0 && r2.sum.bought == 0).equal(true, 'Bought RAM instead of boworring it')
           const rtp = await contract.pay2nameTable({ scope: user[5].name })
@@ -2369,14 +2373,14 @@ function testCustomToken() {
         inTwoSecs = Math.floor(Date.now() / 1000) + 2
         inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58}:from user 0 to user 8 with time limit of two seconds 1`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58};from user 0 to user 8 with time limit of two seconds 1`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
       it('should succeed key to name 11', async () => {
         const veryLongMemo = 'from k1 to user 8 2 | very looooooooooooooooooooooooooooooooooooooooooooooooooonnnnnnnnnnggggggg eeeeeeeeeeeeeeeeeeeeennnnnnnnnnnntttttttttttrrrrrrrrrrryyyyyyyyyyyyyyyyyyyy!!!!!!'
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:${veryLongMemo}`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58};${veryLongMemo}`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
@@ -2384,7 +2388,7 @@ function testCustomToken() {
         inTwoSecs = Math.floor(Date.now() / 1000) + 2
         inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inTwoSecsBs58}: from k1 to user 8 3`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inTwoSecsBs58}; from k1 to user 8 3`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
@@ -2471,22 +2475,22 @@ function testCustomToken() {
       })
       it('should succeed two name to name 1', async () => {
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 5`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58};from user 0 to user 8 5`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 6`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58};from user 0 to user 8 6`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
         await checkAndUpdateCustomBalance(balanceUser0, -2 * sendCustom.amount)
       })
       it('should succeed two key to name 2', async () => {
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 7`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58};from k1 to user 8 7`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 8`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58};from k1 to user 8 8`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
         await checkAndUpdateCustomBalance(balanceUser0, -2 * sendCustom.amount)
@@ -2577,13 +2581,13 @@ function testCustomToken() {
       })
       it('should succeed name to name payment 1', async () => {
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 10`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58};from user 0 to user 8 10`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
       it('should succeed key to name 2', async () => {
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 11`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58};from k1 to user 8 11`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
@@ -2608,7 +2612,7 @@ function testCustomToken() {
         inTwoSecs = Math.floor(Date.now() / 1000) + 2
         inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58}:from user 0 to user 8 12`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58};from user 0 to user 8 12`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
       })
@@ -2616,7 +2620,7 @@ function testCustomToken() {
         inTwoSecs = Math.floor(Date.now() / 1000) + 2
         inTwoSecsBs58 = toUInt32ToBase58(inTwoSecs)
         await check.ramTrace(async () => {
-          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58}:from user 0 to user 8 13`, { from: user[0] })
+          return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inTwoSecsBs58};from user 0 to user 8 13`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
