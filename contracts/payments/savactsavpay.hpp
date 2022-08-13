@@ -549,6 +549,10 @@ public:
             _pay2name.modify(itr, get_self(), [&](auto& p) {
                 p.time = 0;
             });
+
+            if (itr->ramBy != get_self()) {
+                // TODO: Change RAM payer
+            }
         }
     }
 
@@ -1312,29 +1316,23 @@ public:
      */
     static void buyRamAndReduceFund(const name& self, const name& token_contract, const int32_t neededRAM, asset& fund);
 
-    // System token
-    [[eosio::on_notify("eosio.token::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, System_Token_Contract);
+    // Notification of withdrawn and deposited tokens
+    [[eosio::on_notify("*::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
+        check(fund.is_valid(), "invalid quantity");
+        check(memo.size() <= 256, "memo has more than 256 bytes");
+        check(fund.amount > 0, "must transfer positive quantity");
+        customDeposit(from, to, fund, memo);
     }
 
-    // SavAct token
-    [[eosio::on_notify("token.savact::transfer")]] void deposit_savact(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, "token.savact"_n);
-    }
-
-    // Copy and edit this function to add a new token
-    // Change custom.token to the token contract name
-    [[eosio::on_notify("custom.token::transfer")]] void deposit_custom(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, "custom.token"_n);
-    }
-
-
-    void customDeposit(const name& from, const name& to, const asset& fund, const string& memo, const name& token_contract) {
+    void customDeposit(const name& from, const name& to, const asset& fund, const string& memo) {
         // Filter everything except incoming
         if (from == get_self() || to != get_self())
             return;
-        check(fund.amount > 0, "Zero amount.");
+
         check(memo.length() > 0, "Empty memo."); // Accept only payments with a memo
+
+        const name& token_contract = get_first_receiver();
+
         auto p = Conversion::GetParams(memo); // Get all parameters of the memo
         switch (p.actionType) {
         case Conversion::ActionType::PAY:

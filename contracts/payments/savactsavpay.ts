@@ -7,14 +7,6 @@
 import { Account, Contract, GetTableRowsOptions, ExtendedAsset, ExtendedSymbol, ActorPermission, TableRowsResult } from 'lamington';
 
 // Table row types
-export interface SavactsavpayClearallkey {
-	scopevalue: number|string;
-}
-
-export interface SavactsavpayClearallname {
-	scope: string|number;
-}
-
 export interface SavactsavpayData {
 	scopeId: number|string;
 	nextId: number|string;
@@ -155,34 +147,6 @@ export interface SavactsavpaySettoken {
 	active: boolean;
 }
 
-export interface SavactsavpayTestaddpay {
-	from: string;
-	to: string;
-	fund: string;
-	token_contract: string|number;
-	memo: string;
-	time: number;
-}
-
-export interface SavactsavpayTestdeposit {
-	from: string|number;
-	to: string|number;
-	fund: string;
-	memo: string;
-}
-
-export interface SavactsavpayTestmemo {
-	memo: string;
-}
-
-export interface SavactsavpayTestsetram {
-	from: string|number;
-	to: string|number;
-	fund: string;
-	maxTime: number;
-	relative: boolean;
-}
-
 export interface SavactsavpayTokens {
 	token: string;
 	openBytes: number;
@@ -195,8 +159,6 @@ export interface SavactsavpayTokens {
 
 export interface Savactsavpay extends Contract {
 	// Actions
-	clearallkey(scopevalue: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	clearallname(scope: string|number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend(to: string|number, id: number|string, token_contract: string|number, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig(to: string, id: number|string, time: number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -213,13 +175,7 @@ export interface Savactsavpay extends Contract {
 	removeram(from: string|number, to: string|number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken(tokenContract: string|number, tokenSymbol: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testaddpay(from: string, to: string, fund: string, token_contract: string|number, memo: string, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testdeposit(from: string|number, to: string|number, fund: string, memo: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testmemo(memo: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testsetram(from: string|number, to: string|number, fund: string, maxTime: number, relative: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	// Actions with object params. (This is WIP and not ready for use)
-	clearallkey_object_params(params: {scopevalue: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	clearallname_object_params(params: {scope: string|number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend_object_params(params: {to: string|number, id: number|string, token_contract: string|number, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig_object_params(params: {to: string, id: number|string, time: number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -236,10 +192,6 @@ export interface Savactsavpay extends Contract {
 	removeram_object_params(params: {from: string|number, to: string|number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken_object_params(params: {tokenContract: string|number, tokenSymbol: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken_object_params(params: {tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testaddpay_object_params(params: {from: string, to: string, fund: string, token_contract: string|number, memo: string, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testdeposit_object_params(params: {from: string|number, to: string|number, fund: string, memo: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testmemo_object_params(params: {memo: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	testsetram_object_params(params: {from: string|number, to: string|number, fund: string, maxTime: number, relative: boolean}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	
 	// Tables
 	dataTable(options?: GetTableRowsOptions): Promise<TableRowsResult<SavactsavpayData>>;
