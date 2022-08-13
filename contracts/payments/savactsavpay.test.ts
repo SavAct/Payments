@@ -2289,7 +2289,7 @@ function testCustomToken() {
       sendCustom = new Asset(100, custom_token.symbol)
       sendCustomString = sendCustom.toString()
     })
-    context('A/7 add custom token', async () => {
+    context('A/9 add custom token', async () => {
       it('should fail to deactivate with auth error 1', async () => {
         await assertMissingAuthority(contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, false, { from: sys_token.contract.account }))
       })
@@ -2310,10 +2310,17 @@ function testCustomToken() {
       it('should fail to activate with auth error 5', async () => {
         await assertMissingAuthority(contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, true, { from: custom_token.contract.account }))
       })
-      it('should succeed to activate it 6', async () => {
+      it('succeed to activate it with other token precision 6', async () => {
+        const sym = new Symbol(custom_token.symbol.name, 3)
+        await contract.settoken(custom_token.contract.account.name, sym.toString(), 240, true, { from: contract.account })
+      })
+      it('should fail to send a payment with this other token precision 7', async () => {
+        await assertEOSErrorIncludesMessage(custom_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `@${user[1].name}!${inOneDayBs58}`, { from: user[0] }), 'unable to find key')
+      })
+      it('should succeed to activate it with right token precision 8', async () => {
         await contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, true, { from: contract.account })
       })
-      it('should update tokens table 7', async () => {
+      it('should update tokens table 9', async () => {
         let {
           rows: [item],
         } = await contract.tokensTable({ scope: custom_token.contract.account.name })

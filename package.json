@@ -1,5 +1,5 @@
 {
-  "name": "teleporteos",
+  "name": "fraud-protection",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,7 +10,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "",
   "devDependencies": {
     "@types/chai": "latest",
     "@types/mocha": "latest",
@@ -27,7 +27,7 @@
     "eosjs": "^22.1.0",
     "eosjs-ecc": "^4.0.7",
     "lamington": "https://github.com/Alien-Worlds/lamington.git",
-    "node-fetch": "^3.2.8",
+    "node-fetch": "^3.2.10",
     "typescript": "^4.4.3"
   }
 }
