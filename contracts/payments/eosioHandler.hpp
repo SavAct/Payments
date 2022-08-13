@@ -6,8 +6,13 @@
 #include <eosio/crypto.hpp>
 
 using namespace eosio;
-
-#define System_Contract_CharArray "systemdummy" // Has to be "eosio". Only while testing it is "systemdummy"
+#ifndef dev
+// Production mode
+#define System_Contract_CharArray "eosio"
+#else
+// Developer mode
+#define System_Contract_CharArray "systemdummy"
+#endif
 
 static constexpr symbol System_Symbol("EOS", 4);
 static constexpr name System_Token_Contract("eosio.token");

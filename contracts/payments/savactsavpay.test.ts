@@ -1,6 +1,6 @@
 /*  Attention: Even by setting skipSystemContracts to false, the test network seems not to provide all eosio.system actions like buyrambytes().
- *  Change "eosio" to "systemdummy" in eosioHandler.hpp to get around this provisionally and execute this test.
- *  Do not forget to set it back for production!
+ *  Change "eosio" to "systemdummy" in eosioHandler.hpp by setting "#define dev" in "savactsavpay.hpp" to get around this provisionally and execute this test.
+ *  Do not forget to remove "#define dev" for production mode!
  */
 
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader, sleep } from 'lamington'
@@ -8,14 +8,12 @@ import * as chai from 'chai'
 import { Savactsavpay, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
 import { Systemdummy } from '../systemdummy/systemdummy'
-import { Serialize } from 'eosjs'
-import { ecc } from 'eosjs/dist/eosjs-ecc-migration'
 import { PublicKey } from 'eosjs/dist/PublicKey'
 import { PrivateKey } from 'eosjs/dist/PrivateKey'
-import { KeyType, publicKeyToString } from 'eosjs/dist/eosjs-numeric'
 import { Symbol, Asset, numberToUInt32, stringToAsset, splitPubKeyToScopeAndTableVec, nameToFromHex, hexWithTypeOfPubKey, numberToUInt64, toUInt32ToBase58 } from '../../helpers/conversions'
 import { getBalance, getBalances, initToken, issueToken, shouldFail, Token, updateAuths } from '../../helpers/chainHandle'
 import { Check } from '../../helpers/contractHandle'
+import { signExtend, signFinalize, signInvalidate, signPayOff, signPayOffAll, signPayOffNewAcc, signReject } from '../../helpers/signFunctions'
 import * as base58 from 'bs58'
 
 let contract: Savactsavpay
@@ -2413,7 +2411,7 @@ function testCustomToken() {
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(3, 'Wrong number of entries in pay2name table')
 
-        checkAndAddCustomBalance(balanceUser8, sendAsset.amount)
+        await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
       it('should succeed to finish key to name 4', async () => {
         const sigTime = Math.floor(Date.now() / 1000)
@@ -2425,6 +2423,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
       it('should succeed to payout expired name to name 5', async () => {
         await waitUntil(inTwoSecs - Date.now() / 1000)
@@ -2435,6 +2435,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(1, 'Wrong number of entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
       it('should succeed to payout expired key to name 6', async () => {
         await check.ramTrace(async () => {
@@ -2444,6 +2446,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
       it('should succeed to make a payment 7', async () => {
         await check.ramTrace(async () => {
@@ -2456,11 +2460,14 @@ function testCustomToken() {
           return contract.finalize(user[8].name, 4, { from: user[0] })
         })
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name, true)
+
+        await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
     })
     context('D/11 reject', async () => {
       before(async () => {
         ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
+        balanceUser0 = await getSystemAndCustomBalances(user[0].name)
       })
       it('should succeed two name to name 1', async () => {
         await check.ramTrace(async () => {
@@ -2471,6 +2478,7 @@ function testCustomToken() {
           return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}:from user 0 to user 8 6`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+        await checkAndUpdateCustomBalance(balanceUser0, -2 * sendCustom.amount)
       })
       it('should succeed two key to name 2', async () => {
         await check.ramTrace(async () => {
@@ -2481,12 +2489,14 @@ function testCustomToken() {
           return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `${pubKey1K1.toString()}@${user[8].name}!${inOneDayBs58}:from k1 to user 8 8`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+        await checkAndUpdateCustomBalance(balanceUser0, -2 * sendCustom.amount)
       })
       it('should succeed to reject name to name 3', async () => {
         await check.ramTrace(async () => {
           return contract.reject(user[8].name, 5, { from: user[8] })
         })
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
+        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
       it('should succeed to reject name to name 4', async () => {
         await check.ramTrace(async () => {
@@ -2496,6 +2506,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
       it('should succeed to reject key to name 5', async () => {
         await check.ramTrace(async () => {
@@ -2524,6 +2536,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(1, 'Wrong number of entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
       it('should succeed to payout last rejected key to name 9', async () => {
         const sigtime = Math.floor(Date.now() / 1000)
@@ -2535,12 +2549,16 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
       it('should succeed to make a payment 10', async () => {
         await check.ramTrace(async () => {
           return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
         }, false)
         ramBefore = await checkAndLogRAM(ramBefore, true, user[8].name, user[0].name)
+
+        await checkAndUpdateCustomBalance(balanceUser0, -sendCustom.amount)
       })
       it('should succeed to reject this last payment in table 11', async () => {
         await check.ramTrace(async () => {
@@ -2549,6 +2567,8 @@ function testCustomToken() {
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name, true)
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
     })
     context('E/4 extend', async () => {
@@ -2626,6 +2646,7 @@ function testCustomToken() {
       })
       it('should succeed to close custom tokens entry of user 8 6', async () => {
         await custom_token.contract.close(user[8].name, custom_token.symbol.toString(), { from: user[8] })
+        balanceUser8 = await getSystemAndCustomBalances(user[8].name)
       })
       it('should fail to payout all extended payments to user 8 which has no open custom token 7', async () => {
         await waitUntil(inTwoSecs)
@@ -2642,6 +2663,8 @@ function testCustomToken() {
 
         const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
         chai.expect(rows.length).equal(0, 'Wrong number of entries in pay2name table')
+
+        await checkAndUpdateCustomBalance(balanceUser8, 2 * sendCustom.amount)
       })
     })
   })
@@ -2652,157 +2675,39 @@ testPaymentSystem()
 testRAMSettings()
 testCustomToken()
 
-async function checkAndAddSystemBalance(user: { name: string; system: number; custom: number }, experctDelta: number) {
-  const delta = (await getSystemBalanceAsset(user.name)).amount - user.system
-  chai.expect(delta).equal(experctDelta, 'Wrong amount of system token for ' + user)
-  user.system += delta
+/**
+ * Check if the system token balance of a user changed as expected and update the balance in the provided user object
+ * @param userObj Object which contains the account name, and previous balances
+ * @param expectDelta Expected difference between the balance before and after
+ */
+async function checkAndUpdateSystemBalance(userObj: { name: string; system: number; custom: number }, expectDelta: number) {
+  const delta = (await getBalance(userObj.name, sys_token)).amount - userObj.system
+  chai.expect(delta).equal(expectDelta, 'Wrong amount of system token for ' + userObj)
+  userObj.system += delta
 }
 
-async function checkAndAddCustomBalance(user: { name: string; system: number; custom: number }, experctDelta: number) {
-  const delta = (await getCustomBalanceAsset(user.name)).amount - user.custom
-  chai.expect((await getCustomBalanceAsset(user.name)).amount).equal(experctDelta, 'Wrong amount of system token for ' + user)
-  user.custom += delta
+/**
+ * Check if the custom token balance of a user changed as expected and update the balance in the provided user object
+ * @param userObj Object which contains the account name, and previous balances
+ * @param expectDelta Expected difference between the balance before and after
+ */
+async function checkAndUpdateCustomBalance(userObj: { name: string; system: number; custom: number }, expectDelta: number) {
+  const delta = (await getBalance(userObj.name, custom_token)).amount - userObj.custom
+  chai.expect(delta).equal(expectDelta, 'Wrong amount of custom token for ' + userObj)
+  userObj.custom += delta
 }
 
-async function getSystemBalanceAsset(user: string) {
-  const r = await sys_token.contract.accountsTable({ scope: user })
-  if (r.rows.length == 0) {
-    return new Asset(0, sys_token.symbol)
-  } else {
-    return stringToAsset(r.rows[0].balance)
-  }
-}
-
-async function getCustomBalanceAsset(user: string) {
-  const r = await custom_token.contract.accountsTable({ scope: user })
-  if (r.rows.length == 0) {
-    return new Asset(0, custom_token.symbol)
-  } else {
-    return stringToAsset(r.rows[0].balance)
-  }
-}
-
+/**
+ * Get the current balances of an account as an object
+ * @param user Account name
+ * @returns Object which contains the account name, and the previous balance of the system token and custom token
+ */
 async function getSystemAndCustomBalances(user: string) {
   return {
     name: user,
-    system: (await getSystemBalanceAsset(user)).amount,
-    custom: (await getCustomBalanceAsset(user)).amount,
+    system: (await getBalance(user, sys_token)).amount,
+    custom: (await getBalance(user, custom_token)).amount,
   }
-}
-
-/**
- * Get the signature to reject a payment
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param from Account name or public key in hex format
- * @param id Payment id
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signReject(privateKey: string, chainId: string, contract_name: string, from: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} reject ${from} ${id} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to extend a payment
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param time New time limit
- * @param to_hex Public key of the origin recipient in hex format
- * @param id Payment id
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signExtend(privateKey: string, chainId: string, contract_name: string, time: string, to_hex: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} extend ${time} ${to_hex} ${id} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to finalize a payment
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param to Account name or public key in hex format
- * @param id Payment id
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signFinalize(privateKey: string, chainId: string, contract_name: string, to: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} finalize ${to} ${id} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to invalidate a payment
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param to Account name or public key in hex format
- * @param id Payment id
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signInvalidate(privateKey: string, chainId: string, contract_name: string, to: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} invalidate ${to} ${id} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to payoff a payment
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param to Account name or public key in hex format
- * @param id Payment id
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signPayOff(privateKey: string, chainId: string, contract_name: string, to: string, recipient: string, id: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} payoff ${to} ${recipient} ${id} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to payoff all payments
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param token_contract_name Token contract name
- * @param token_symbol Symbol name of the token
- * @param recipient_name Account name of the recipient
- * @param memo Memo which will be used for the payment to the recipient
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signPayOffAll(privateKey: string, chainId: string, contract_name: string, token_contract_name: string, token_symbol: Symbol, recipient_name: string, memo: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} payoff all ${token_contract_name} ${token_symbol.toString()} ${recipient_name} ${memo} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
-}
-
-/**
- * Get the signature to payoff all system tokens to a new account
- *
- * @param privateKey Key which signs the message
- * @param chainId Id of the chain where the contarct is deployed to
- * @param contract_name Contract name
- * @param pup_key_new_acc Public key of the new account in hex format
- * @param new_account Account name of the new account which will be created receives all payments
- * @param sigtime Current unix time of the signing
- * @returns
- */
-function signPayOffNewAcc(privateKey: string, chainId: string, contract_name: string, pup_key_new_acc: string, new_account: string, sigtime: string) {
-  const raw = `${chainId} ${contract_name} payoff new acc ${pup_key_new_acc} ${new_account} ${sigtime}`
-  return { raw: raw, sig: ecc.sign(raw, privateKey) }
 }
 
 /**
@@ -2860,19 +2765,7 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
   return ramEntry
 }
 
-// TODO: Write tests for every case
-
-// Actions for testing (TODO: Delete them from contract files):
-// contract.clearallkey
-// contract.clearallname
-// contract.testaddpay
-// contract.testdeposit
-// contract.testmemo
-// contract.testsetram
-
-// Payments
-// eosioToken.transfer(sender1.name, contract.account.name, `1.0000 ${token_symbol}`, '', {from: sender1})
-// Memo parameters:
+// Memo parameters on payments to the contract:
 // from? @to !time ;memo? | :abstimmungen?
 // RAM@to !time | .relative_time
 // FIN@to_pub #id =sig_time ~sig
@@ -2884,17 +2777,19 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
 // ACC@to_pub =sig_time ~sig +recipient &recipient_key?
 
 // Actions of the contract:
+// contract.extend
+// contract.extendsig
 // contract.finalize
 // contract.finalizesig
 // contract.invalidate
 // contract.invalisig
+// contract.reject
+// contract.rejectsig
 // contract.payoff
 // contract.payoffall
 // contract.payoffnewacc
 // contract.payoffsig
 // contract.payoffallsig
-// contract.reject
-// contract.rejectsig
 // contract.removeram
 // contract.settoken
 // contract.removetoken

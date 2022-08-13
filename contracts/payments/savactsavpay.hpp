@@ -1,3 +1,5 @@
+#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+
 #include <eosio/eosio.hpp>
 #include <eosio/asset.hpp>
 #include <vector>
@@ -119,106 +121,6 @@ private:
 
 public:
     using contract::contract;
-
-#pragma region for Testing
-
-    //- While testing
-    ACTION clearallname(const name scope) {
-        require_auth(get_self());
-
-        ram_table _ram(get_self(), scope.value);
-        auto ritr = _ram.begin();
-        while (ritr != _ram.end()) {
-            ritr = _ram.erase(ritr);
-        }
-
-        pay2name_table _pay2name(get_self(), scope.value);
-        auto itr = _pay2name.begin();
-        while (itr != _pay2name.end()) {
-            itr = _pay2name.erase(itr);
-        }
-    }
-
-    //- While testing
-    ACTION clearallkey(const uint64_t scopevalue) {
-        require_auth(get_self());
-
-        ram_table _ram(get_self(), scopevalue);
-        auto ritr = _ram.begin();
-        while (ritr != _ram.end()) {
-            ritr = _ram.erase(ritr);
-        }
-
-        pay2name_table _pay2name(get_self(), scopevalue);
-        auto itr = _pay2name.begin();
-        while (itr != _pay2name.end()) {
-            itr = _pay2name.erase(itr);
-        }
-    }
-
-    //- For testing, should be handled by deposit system token
-    ACTION testmemo(const string& memo) {
-        auto p = Conversion::GetParams(memo); // Get all parameters of the memo
-        string str;
-        str.append("Type: ").append(to_string(p.actionType)).append("| From ").append(to_string(p.hasFrom)).append(": ").append(p.from);
-        if (p.hasTo) {
-            str.append("; To: ").append(p.to);
-        }
-        if (p.hasId) {
-            str.append("; Id: ").append(to_string(p.id));
-        }
-        if (p.hasTime) {
-            str.append(p.isTimeRelative ? "; Relative time " : "; Time ").append(to_string(p.hasTime)).append(": ").append(to_string(p.time));
-        }
-        if (p.hasRecipient) {
-            str.append("; Recipient: ").append(p.recipient.to_string());
-        }
-        if (p.hasRecipientPublicKey) {
-            str.append("; ReciPub: ").append(Conversion::vec_to_hex(Conversion::GetVectorFromPubKey(p.recipientPublicKey)));
-        }
-        if (p.hasVote) {
-            str.append("; MemoVote: ").append(p.memo);
-        }
-        if (p.hasMemo) {
-            str.append("; Memo: ").append(p.memo);
-        }
-
-        if (p.hasSignature) {
-            // Signature to vector
-            ecc_signature ecc_sig;
-            switch (p.sig.index()) {
-            case 0:
-                ecc_sig = std::get<0>(p.sig);
-                break;
-            case 1:
-                ecc_sig = std::get<1>(p.sig);
-                break;
-                // case 2: ecc_sig = std::get<2>(p.sig); break;
-            }
-            vector<char> v_sig(ecc_sig.begin(), ecc_sig.end());
-            v_sig.push_back((char)p.sig.index());
-
-            str.append("; Sig: ").append(Conversion::vec_to_hex(v_sig));
-        }
-        check(false, str);
-    }
-
-    //- For testing, should be handled by deposit system token
-    ACTION testdeposit(const name& from, const name& to, const asset& fund, const string& memo) {
-        customDeposit(from, to, fund, memo, "eosio.token"_n);
-    }
-
-    //- For testing, should be handled by deposit system token
-    ACTION testsetram(name from, name to, asset fund, uint32_t maxTime, bool relative) {
-        setRam(from, to, fund, maxTime, relative);
-    }
-
-    //- For testing, should be handled by deposit of tokens
-    ACTION testaddpay(const string& from, const string& to, const asset& fund, const name token_contract, const string& memo, const uint32_t time) {
-        pay(from, to, fund, token_contract, memo, time);
-    }
-
-#pragma endregion
 
     /**
      * @brief Set token to a accepted token list and define the amount of RAM which are needed to create an entry for a user.
