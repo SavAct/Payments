@@ -83,6 +83,6 @@ sudo yarn test
 The underlying principle has been submitted for patent. Nevertheless, the contract is freely usable under the following condition:
 
 A payment sender designates a payee who receives the payment at least after the expiry of a given time limit.
-All payments have to be send back to the sender, directed to the mentioned payee or distributed to all SavAct token owners in proportion to their staked token amount. The same applies to possible fees.
+All payments have to be send back to the sender, directed to the mentioned payee or distributed to all SavAct token owners in proportion to their staked token amount. The same applies to possible fees and burned funds.
 Charges incurred solely through the use of native network resources are excluded from this condition.
 For other networks, a bridge to the SavAct token has to be created first in order to involve the SavAct token owners.

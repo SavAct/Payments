@@ -37,8 +37,6 @@ static constexpr uint64_t netCostForUser = 5000; // amount in system token
 static constexpr uint64_t cpuCostForUser = 5000; // amount in system token
 static constexpr char chainIDAndContractName[] = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906 savactsavpay";
 
-// static constexpr int PubKeyWithoutPrimarySize = 33 - sizeof(uint64_t);  // Not necessary anymore
-
 CONTRACT savactsavpay : public contract
 {
 private:
@@ -211,10 +209,9 @@ public:
      * @param self This contract
      * @param to Origin recipient of the payment
      * @param itr Iterator of the payment
-     * @param token_contract Contract name of the token
      * @return the name of the ram offerer
      */
-    inline static name changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, const name& token_contract, uint32_t time);
+    inline static name changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, uint32_t time);
 
     /**
      * @brief Get the amount of RAM which is needed for a payment.
@@ -455,7 +452,7 @@ public:
      * @param id Id of the payment
      * @param time New time limit for the payment
      */
-    ACTION extend(const name& to, const uint64_t id, const name& token_contract, const uint32_t time) {
+    ACTION extend(const name& to, const uint64_t id, const uint32_t time) {
         require_auth(to);
         check(time > eosio::current_time_point().sec_since_epoch(), "Time is below current time.");
 
@@ -468,7 +465,7 @@ public:
         check(itr->time < time, "Cannot reduce the time limit.");
 
         // Find new RAM offerer if needed
-        const name payer = changeRamOfferer(get_self(), to, itr, token_contract, time);
+        const name payer = changeRamOfferer(get_self(), to, itr, time);
 
         // Extend the payment
         _pay2name.modify(itr, get_self(), [&](auto& p) {
@@ -553,12 +550,36 @@ public:
             check(itr->time != 0, "The payment has already been rejected.");    // Check only rejected, all other possibilities should still be available
 
             // Set the payment open to pay back
-            _pay2name.modify(itr, get_self(), [&](auto& p) {
-                p.time = 0;
-            });
-
             if (itr->ramBy != get_self()) {
-                // TODO: Change RAM payer
+                // Check if fund is system token, buy needed RAM and reduce the fund amount accordingly
+                if (itr->contract == System_Token_Contract && itr->fund.symbol == System_Symbol) {
+                    // Get RAM for this entry
+                    uint32_t neededRAM = getRamForPayment(get_self(), false, true, itr->contract, itr->fund.symbol, itr->memo, false);
+
+                    // Return the RAM to the offerer and buy the needed RAM from the fund amount
+                    asset fund = itr->fund;
+                    freeRamUsage(get_self(), itr->ramBy, to, neededRAM);
+                    buyRamAndReduceFund(get_self(), itr->contract, neededRAM, fund);
+
+                    check(fund.amount > 0, "Fund is too small to buy the RAM for it.");
+
+                    // Delete table entry if there are no funds left otherwise edit the entry
+                    _pay2name.modify(itr, get_self(), [&](auto& p) {
+                        p.time = 0;             // Set the payment open to pay back
+                        p.fund = fund;
+                        p.ramBy = get_self();
+                    });
+                }
+                else
+                {
+                    check(false, "Cannot extend this token for a public key payment sender.");
+                }
+            }
+            else
+            {
+                _pay2name.modify(itr, get_self(), [&](auto& p) {
+                    p.time = 0;             // Set the payment open to pay back
+                });
             }
         }
     }

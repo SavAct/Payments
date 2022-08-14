@@ -1376,13 +1376,13 @@ function testPaymentSystem() {
         })
 
         it('should fail with auth error by sender auth 2', async () => {
-          await assertMissingAuthority(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[0] }))
+          await assertMissingAuthority(contract.extend(user[1].name, 4, inTwoDays, { from: user[0] }))
         })
         it('should fail with auth error by contract auth 3', async () => {
-          await assertMissingAuthority(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: contract.account }))
+          await assertMissingAuthority(contract.extend(user[1].name, 4, inTwoDays, { from: contract.account }))
         })
         it('should fail with lower than current time on name payment 4', async () => {
-          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, currentTime - 1, { from: user[1] }), 'Time is below current time.')
+          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, currentTime - 1, { from: user[1] }), 'Time is below current time.')
         })
         it('should fail with lower than current time on key payment  5', async () => {
           const earlier = currentTime - 1
@@ -1390,7 +1390,7 @@ function testPaymentSystem() {
           await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 4, earlier, currentTime, sig, { from: user[2] }), 'Time is below current time.')
         })
         it('should fail with earlier time on name payment 6', async () => {
-          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, currentTime + 7, { from: user[1] }), 'Cannot reduce the time limit.')
+          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, currentTime + 7, { from: user[1] }), 'Cannot reduce the time limit.')
         })
         it('should fail with eralier time on key payment 7', async () => {
           const earlier = currentTime + 7
@@ -1398,17 +1398,17 @@ function testPaymentSystem() {
           await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 4, earlier, currentTime, sig, { from: user[2] }), 'Cannot reduce the time limit.')
         })
         it('should fail with negative time on name payment 8', async () => {
-          await shouldFail(contract.extend(user[1].name, 4, sys_token.contract.account.name, -1, { from: user[1] }))
+          await shouldFail(contract.extend(user[1].name, 4, -1, { from: user[1] }))
         })
         it('should fail with same time on name payment 9', async () => {
-          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, inOneDay, { from: user[1] }), 'Mentioned time limit is equal to the current one.')
+          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, inOneDay, { from: user[1] }), 'Mentioned time limit is equal to the current one.')
         })
         it('should fail with same time on key payment 10', async () => {
           const sig = signExtend(priKey1K1.toString(), mainNetChainId, contract.account.name, inOneDay.toString(), hexWithTypeOfPubKey(pubKey1K1), (3).toString(), currentTime.toString()).sig
           await assertEOSErrorIncludesMessage(contract.extendsig(pubKey1K1.toString(), 3, inOneDay, currentTime, sig, { from: user[2] }), 'Mentioned time limit is equal to the current one.')
         })
         it('should succeed on name table 11', async () => {
-          contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[1] })
+          contract.extend(user[1].name, 4, inTwoDays, { from: user[1] })
           const nameRows = (await contract.pay2nameTable({ scope: user[1].name })).rows
           chai.expect(nameRows[1].time).equal(inTwoDays, 'Wrong time value')
         })
@@ -1433,7 +1433,7 @@ function testPaymentSystem() {
         })
 
         it('should fail to extend a rejected payment 15', async () => {
-          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, sys_token.contract.account.name, inTwoDays, { from: user[1] }), 'Payment is already rejected.')
+          await assertEOSErrorIncludesMessage(contract.extend(user[1].name, 4, inTwoDays, { from: user[1] }), 'Payment is already rejected.')
         })
 
         it('should succeed to extend a finalized payment with "EXT" parameter 16', async () => {
@@ -1448,7 +1448,7 @@ function testPaymentSystem() {
         it('should succeed on expired payment on name table 17', async () => {
           await waitUntil(in8Secs.end)
           await check.ramTrace(async () => {
-            return contract.extend(user[1].name, 5, sys_token.contract.account.name, inOneDay, { from: user[1] })
+            return contract.extend(user[1].name, 5, inOneDay, { from: user[1] })
           })
         })
         it('should succeed on expired payment on key table with "EXT" parameter 18', async () => {
@@ -1798,10 +1798,19 @@ function testPaymentSystem() {
       })
     })
 
-    context('?/? deposited RAM', async () => {
-      //TODO:
+    // Set some settings back t5to be compatible with further tests
+    context('set settings back', async () => {
+      context('AC/2', async () => {
+        it('send balance of user 2 to user 0 1', async () => {
+          const balance = await getBalance(user[2], sys_token)
+          await sys_token.contract.transfer(user[2].name, user[0].name, balance.toString(), '', { from: user[2] })
+        })
+        it('close balance of system token for user 2 2', async () => {
+          const balance = await getBalance(user[2], sys_token)
+          await sys_token.contract.close(user[2].name, balance.symbol.toString(), { from: user[2] })
+        })
+      })
     })
-    // TODO: ...
   })
 }
 
@@ -2143,10 +2152,13 @@ function testRAMSettings() {
           chai.expect(Number(item.amount) - Number(item.free)).equal(0, 'Got not all offered RAM back')
         })
       })
-      context('F/6 extend payment', async () => {
+      context('F/15 extend payment', async () => {
         let inTwoHours: number
         let ram_state: Array<SavactsavpayRam>
         let minAsset: Asset
+        let balanceUser2: number
+        let rejectedAmountE6: number
+        let rejectedAmountE7: number
         before(async () => {
           minAsset = new Asset(1, sys_token.symbol)
           inTwoHours = inOneHour + 3600
@@ -2155,9 +2167,6 @@ function testRAMSettings() {
           await check.ramTrace(async () => {
             return sys_token.contract.transfer(user[4].name, contract.account.name, minAsset.toString(), `RAM@${user[5].name}!${inOneDayBs58}`, { from: user[4] })
           }, false)
-          // await check.ramTrace(async () => {
-          //   return sys_token.contract.transfer(user[1].name, contract.account.name, minAsset.toString(), `RAM@${user[5].name}/${inOneDayBs58}`, { from: user[1] })
-          // }, false)
           await check.ramTrace(async () => {
             return sys_token.contract.transfer(user[3].name, contract.account.name, minAsset.toString(), `RAM@${user[5].name}/${forOneDayBs58}`, { from: user[3] })
           }, false)
@@ -2187,7 +2196,7 @@ function testRAMSettings() {
         })
         it('should succeed to extend payment by keep the RAM payer 3', async () => {
           const r = await check.ramTrace(async () => {
-            return contract.extend(user[5].name, 4, sys_token.contract.account.name, inTwoHours, { from: user[5] })
+            return contract.extend(user[5].name, 4, inTwoHours, { from: user[5] })
           })
           chai.expect(r.sum.bought).equal(0, 'Bought RAM')
           const rtp = await contract.pay2nameTable({ scope: user[5].name })
@@ -2195,7 +2204,7 @@ function testRAMSettings() {
         })
         it('should succeed to extend payment by switching to a relative RAM payer 4', async () => {
           const r = await check.ramTrace(async () => {
-            return contract.extend(user[5].name, 5, sys_token.contract.account.name, inTwoHours, { from: user[5] })
+            return contract.extend(user[5].name, 5, inTwoHours, { from: user[5] })
           })
           chai.expect(r.sum.bought).equal(0, 'Bought RAM')
           const rtp = await contract.pay2nameTable({ scope: user[5].name })
@@ -2207,7 +2216,7 @@ function testRAMSettings() {
         })
         it('should succeed to extend payment by switching to a absolute RAM payer 5', async () => {
           const r = await check.ramTrace(async () => {
-            return contract.extend(user[5].name, 5, sys_token.contract.account.name, inTwoDays, { from: user[5] })
+            return contract.extend(user[5].name, 5, inTwoDays, { from: user[5] })
           })
           chai.expect(r.sum.bought).equal(0, 'Bought RAM')
           const rtp = await contract.pay2nameTable({ scope: user[5].name })
@@ -2217,9 +2226,90 @@ function testRAMSettings() {
           chai.expect(tr.rows[2].amount == tr.rows[2].free).equal(true, 'RAM was not given back')
         })
         it('should fail with not available time limit 6', async () => {
-          assertEOSErrorIncludesMessage(contract.extend(user[5].name, 5, sys_token.contract.account.name, inTwoDays + 1, { from: user[5] }), 'No RAM payer for this time span.')
+          assertEOSErrorIncludesMessage(contract.extend(user[5].name, 5, inTwoDays + 1, { from: user[5] }), 'No RAM payer for this time span.')
         })
-        it('should succeed to remove all RAM offerer 7', async () => {
+        it('should succeed to set a key to name payment 7', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[5].name}!${inOneHourBs58}; from k1 to user 5 6`, { from: user[0] })
+          }, false)
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(3, 'Wrong number of entries in pay2name table')
+          chai.expect(rows[2].ramBy).equal(user[1].name, 'Wrong RAM offerer')
+          chai.expect(stringToAsset(rows[2].fund).amount).equal(sendAsset.amount, 'Amount was reduces although the RAM is borrowed')
+        })
+        it('should succeed to set a key to name payment 8', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1K1.toString()}@${user[5].name}!${inOneHourBs58}; from k1 to user 5 7`, { from: user[0] })
+          }, false)
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(4, 'Wrong number of entries in pay2name table')
+          chai.expect(rows[3].ramBy).equal(user[1].name, 'Wrong RAM offerer')
+        })
+        it('should succeed to set a key to name payment with minimum fund amount 9', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[0].name, contract.account.name, new Asset(1, sys_token.symbol).toString(), `${pubKey1K1.toString()}@${user[5].name}!${inOneHourBs58}; from k1 to user 5 8`, { from: user[0] })
+          }, false)
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(5, 'Wrong number of entries in pay2name table')
+          chai.expect(rows[4].ramBy).equal(user[3].name, 'Wrong RAM offerer')
+        })
+        it('should succeed to reject key to name 10', async () => {
+          await check.ramTrace(async () => {
+            return contract.reject(user[5].name, 6, { from: user[5] })
+          })
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(5, 'Wrong number of entries in pay2name table')
+          chai.expect(rows[2].time).equal(0, 'No rejection mark')
+          chai.expect(rows[2].ramBy).equal(contract.account.name, 'Does not bought the RAM')
+          rejectedAmountE6 = stringToAsset(rows[2].fund).amount
+          chai.expect(rejectedAmountE6).lessThan(sendAsset.amount, 'No reduction of fund amount')
+        })
+        it('should succeed to reject key to name 11', async () => {
+          await check.ramTrace(async () => {
+            return contract.reject(user[5].name, 7, { from: user[5] })
+          })
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(5, 'Wrong number of entries in pay2name table')
+          chai.expect(rows[3].time).equal(0, 'No rejection mark')
+          chai.expect(rows[3].ramBy).equal(contract.account.name, 'Does not bought the RAM')
+          chai.expect(stringToAsset(rows[3].fund).amount).lessThan(sendAsset.amount, 'No reduction of fund amount')
+        })
+        it('should fail to reject key to name with too small amount 12', async () => {
+          await assertEOSErrorIncludesMessage(contract.reject(user[5].name, 8, { from: user[5] }), 'Fund is too small to buy the RAM for it.')
+        })
+        it('should succeed to payout rejected key to name for account without open token 13', async () => {
+          balanceUser2 = (await getBalance(user[2], sys_token)).amount
+          const sigtime = Math.floor(Date.now() / 1000)
+          const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[5].name, user[2].name, (6).toString(), sigtime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.payoffsig(user[5].name, 6, user[2].name, sigtime, sig, { from: user[0] })
+          }, false)
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(4, 'Wrong number of entries in pay2name table')
+          const newBalanceUser2 = (await getBalance(user[2], sys_token)).amount
+          chai.expect(newBalanceUser2 - balanceUser2).equal(rejectedAmountE6, 'No reduction of the rejected amount for opening a token entry')
+
+          balanceUser2 = newBalanceUser2
+          rejectedAmountE7 = stringToAsset(rows[2].fund).amount
+        })
+        it('should succeed to payout rejected key to name for account 14', async () => {
+          const sigtime = Math.floor(Date.now() / 1000)
+          const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[5].name, user[2].name, (7).toString(), sigtime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.payoffsig(user[5].name, 7, user[2].name, sigtime, sig, { from: user[0] })
+          }, false)
+          const rows = (await contract.pay2nameTable({ scope: user[5].name })).rows
+          chai.expect(rows.length).equal(3, 'Wrong number of entries in pay2name table')
+          const newBalanceUser2 = (await getBalance(user[2], sys_token)).amount
+          chai.expect(newBalanceUser2 - balanceUser2).greaterThan(rejectedAmountE7, 'No reduction of the rejected amount for opening a token entry')
+          balanceUser2 = newBalanceUser2
+        })
+        it('should succeed to remove all RAM offerer 15', async () => {
+          const sigtime = Math.floor(Date.now() / 1000)
+          const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[5].name, (8).toString(), sigtime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.finalizesig(user[5].name, 8, sigtime, sig, { from: user[0] })
+          })
           await check.ramTrace(async () => {
             return contract.finalize(user[5].name, 4, { from: user[0] })
           })
@@ -2475,7 +2565,7 @@ function testCustomToken() {
         await checkAndUpdateCustomBalance(balanceUser8, sendCustom.amount)
       })
     })
-    context('D/11 reject', async () => {
+    context('D/8 reject', async () => {
       before(async () => {
         ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
         balanceUser0 = await getSystemAndCustomBalances(user[0].name)
@@ -2520,50 +2610,22 @@ function testCustomToken() {
 
         await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
-      it('should succeed to reject key to name 5', async () => {
+      it('should fail to reject key to name 5', async () => {
+        await assertEOSErrorIncludesMessage(contract.reject(user[8].name, 7, { from: user[8] }), 'Cannot extend this token for a public key payment sender.')
+      })
+      it('should succeed to finalize bothe key to name entries instead 6', async () => {
+        const sigTime = Math.floor(Date.now() / 1000)
+        const sig7 = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, (7).toString(), sigTime.toString()).sig
         await check.ramTrace(async () => {
-          return contract.reject(user[8].name, 7, { from: user[8] })
+          return contract.finalizesig(user[8].name, 7, sigTime, sig7, { from: user[0] })
         })
-      })
-      it('should succeed to reject key to name 6', async () => {
+        const sig8 = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, (8).toString(), sigTime.toString()).sig
         await check.ramTrace(async () => {
-          return contract.reject(user[8].name, 8, { from: user[8] })
-        })
-        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
-        chai.expect(rows.length).equal(2, 'Wrong number of entries in pay2name table')
-      })
-      it('should fail to payout rejected key to name without open token 7', async () => {
-        const sigtime = Math.floor(Date.now() / 1000)
-        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[3].name, (7).toString(), sigtime.toString()).sig
-        assertEOSErrorIncludesMessage(contract.payoffsig(user[8].name, 7, user[3].name, sigtime, sig, { from: user[0] }), 'The user has no entry for this token.')
-      })
-      it('should succeed to payout rejected key to name 8', async () => {
-        const sigtime = Math.floor(Date.now() / 1000)
-        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[0].name, (7).toString(), sigtime.toString()).sig
-        await check.ramTrace(async () => {
-          return contract.payoffsig(user[8].name, 7, user[0].name, sigtime, sig, { from: user[0] })
+          return contract.finalizesig(user[8].name, 8, sigTime, sig8, { from: user[0] })
         })
         ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name)
-
-        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
-        chai.expect(rows.length).equal(1, 'Wrong number of entries in pay2name table')
-
-        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
       })
-      it('should succeed to payout last rejected key to name 9', async () => {
-        const sigtime = Math.floor(Date.now() / 1000)
-        const sig = signPayOff(priKey1K1.toString(), mainNetChainId, contract.account.name, user[8].name, user[0].name, (8).toString(), sigtime.toString()).sig
-        await check.ramTrace(async () => {
-          return contract.payoffsig(user[8].name, 8, user[0].name, sigtime, sig, { from: user[0] })
-        })
-        ramBefore = await checkAndLogRAM(ramBefore, false, user[8].name, user[0].name, true)
-
-        const rows = (await contract.pay2nameTable({ scope: user[8].name })).rows
-        chai.expect(rows.length).equal(0, 'There is still an entries in pay2name table')
-
-        await checkAndUpdateCustomBalance(balanceUser0, sendCustom.amount)
-      })
-      it('should succeed to make a payment 10', async () => {
+      it('should succeed to make a payment 7', async () => {
         await check.ramTrace(async () => {
           return custom_token.contract.transfer(user[0].name, contract.account.name, sendCustomString, `@${user[8].name}!${inOneDayBs58}`, { from: user[0] })
         }, false)
@@ -2571,7 +2633,7 @@ function testCustomToken() {
 
         await checkAndUpdateCustomBalance(balanceUser0, -sendCustom.amount)
       })
-      it('should succeed to reject this last payment in table 11', async () => {
+      it('should succeed to reject this last payment in table 8', async () => {
         await check.ramTrace(async () => {
           return contract.reject(user[8].name, 9, { from: user[8] })
         })
@@ -2600,13 +2662,13 @@ function testCustomToken() {
       })
       it('should succeed to extend name to name 3', async () => {
         await check.ramTrace(async () => {
-          return contract.extend(user[8].name, 10, custom_token.contract.account.name, inTwoDays, { from: user[8] })
+          return contract.extend(user[8].name, 10, inTwoDays, { from: user[8] })
         })
         ramBefore = await checkRAMisConstant(ramBefore, user[8].name, user[0].name)
       })
       it('should succeed to extend key to name 4', async () => {
         await check.ramTrace(async () => {
-          return contract.extend(user[8].name, 11, custom_token.contract.account.name, inTwoDays, { from: user[8] })
+          return contract.extend(user[8].name, 11, inTwoDays, { from: user[8] })
         })
         ramBefore = await checkRAMisConstant(ramBefore, user[8].name, user[0].name)
 
@@ -2680,11 +2742,74 @@ function testCustomToken() {
     })
   })
 }
+function testVote() {
+  let inOneDay: number
+  let inOneDayBs58: string
+  let smallAsset: Asset
+  let smallAssetString: string
+  let inOneHour: number
+  let inOneHourBs58: string
+  let ramBefore: SavactsavpayRam
+  describe('Vote', () => {
+    before(async () => {
+      smallAsset = new Asset(200, sys_token.symbol)
+      smallAssetString = smallAsset.toString()
+      inOneHour = Math.floor(Date.now() / 1000) + 3600
+      inOneHourBs58 = toUInt32ToBase58(inOneHour)
+      inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
+      inOneDayBs58 = toUInt32ToBase58(inOneDay)
+    })
+    context('A/6', async () => {
+      before(async () => {
+        ramBefore = (await contract.ramTable({ scope: user[8].name })).rows[0]
+      })
+      it('should succeed a vote from name to name 1', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 0`, { from: user[0] })
+        }, false)
+      })
+      it('should succeed a vote from name to name 2', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `${user[1].name}@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 1`, { from: user[0] })
+        }, false)
+      })
+      it('should succeed a vote from key to name 3', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 2`, { from: user[0] })
+        }, false)
+      })
+      it('should succeed a vote from name to key 4', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].publicKey}!${inOneDayBs58}:Vote: from user 0 to user 7 key 3`, { from: user[0] })
+        }, false)
+      })
+      it('should succeed a vote from key to key 5', async () => {
+        await check.ramTrace(async () => {
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `PAY${priKey1K1.getPublicKey().toString()}@${user[7].publicKey}!${inOneDayBs58}:Vote: from k1 0 to user 7 key 4`, { from: user[0] })
+        }, false)
+      })
+      it('check tables 6', async () => {
+        const toNameRows = (await contract.pay2nameTable({ scope: user[7].name })).rows
+        chai.expect(toNameRows.length).equal(3, 'Wrong amount of name table entries')
+        const splitKeyUser7 = splitPubKeyToScopeAndTableVec(PublicKey.fromString(user[7].publicKey as string))
+        const toKeyRows = (await contract.pay2keyTable({ scope: splitKeyUser7.scope.toString() })).rows
+        chai.expect(toKeyRows.length).equal(2, 'Wrong amount of key table entries')
+        for (let entry of toNameRows) {
+          chai.expect(entry.type).equal(1, `Entry ${entry.id} of ${user[7].name} is not defined as simple vote`)
+        }
+        for (let entry of toKeyRows) {
+          chai.expect(entry.type).equal(1, `Entry ${entry.id} of ${user[7].publicKey} is not defined as simple vote`)
+        }
+      })
+    })
+  })
+}
 
 testContractIni()
 testPaymentSystem()
 testRAMSettings()
 testCustomToken()
+testVote()
 
 /**
  * Check if the system token balance of a user changed as expected and update the balance in the provided user object

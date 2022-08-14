@@ -15,7 +15,6 @@ export interface SavactsavpayData {
 export interface SavactsavpayExtend {
 	to: string|number;
 	id: number|string;
-	token_contract: string|number;
 	time: number;
 }
 
@@ -161,7 +160,7 @@ export interface SavactsavpayTokens {
 
 export interface Savactsavpay extends Contract {
 	// Actions
-	extend(to: string|number, id: number|string, token_contract: string|number, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extend(to: string|number, id: number|string, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig(to: string, id: number|string, time: number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalizesig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -178,7 +177,7 @@ export interface Savactsavpay extends Contract {
 	removetoken(tokenContract: string|number, tokenSymbol: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	// Actions with object params. (This is WIP and not ready for use)
-	extend_object_params(params: {to: string|number, id: number|string, token_contract: string|number, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	extend_object_params(params: {to: string|number, id: number|string, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig_object_params(params: {to: string, id: number|string, time: number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalizesig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;

@@ -420,6 +420,7 @@ bool savactsavpay::isTokenAcceptedPayIn(const name& self, const name& token_cont
 
 void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type) {
     check(memo.size() < 256, "Memo is too long.");
+    check(fund.amount > 0, "Fund is too small.");
 
     // Create a new entry
     table.emplace(get_self(), [&](auto& p) {
@@ -436,6 +437,7 @@ void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const
 
 void savactsavpay::addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type) {
     check(memo.size() < 256, "Memo is too long.");
+    check(fund.amount > 0, "Fund is too small.");
 
     // Create a new entry
     table.emplace(get_self(), [&](auto& p) {
@@ -487,7 +489,7 @@ void savactsavpay::freeRamUsage(const name& self, const name& from, const name& 
 
 void savactsavpay::freeRamUsage(const name& self, const name& from, const name& to, const uint32_t free, ram_table& _ram) {
     auto itr = _ram.find(from.value);
-    check(itr != _ram.end(), "RAM entry does not exist.");  // This cannot happen, just for double checking
+    check(itr != _ram.end(), "RAM entry does not exist!");  // This cannot happen, just for double checking
     freeRamUsage(self, free, _ram, itr);
 }
 
@@ -497,16 +499,17 @@ void savactsavpay::freeRamUsage(const name& self, const uint32_t free, ram_table
         });
 }
 
-name savactsavpay::changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, const name& token_contract, uint32_t time) {
+name savactsavpay::changeRamOfferer(const name& self, const name& to, const pay2name_table::const_iterator& itr, uint32_t time) {
     if (itr->ramBy != self) {
         // Get RAM amount
-        auto usedRAM = getRamForPayment(self, itr->from.size() == 8, true, token_contract, itr->fund.symbol, itr->memo);
+        auto usedRAM = getRamForPayment(self, itr->from.size() == 8, true, itr->contract, itr->fund.symbol, itr->memo);
 
-        // Check time of old offerer, Check for relative time and absolut time
+        // Check time of old offerer (check for relative time and absolut time)
         ram_table _ram(self, to.value);
         auto byRam_itr = _ram.find(itr->ramBy.value);
         auto currentTime = eosio::current_time_point().sec_since_epoch();
-        if (!isFreeRAMPayer(0, time, currentTime, _ram, byRam_itr)) {
+        if (!isFreeRAMPayer(0, time, currentTime, _ram, byRam_itr))     // For the current offerer is the needed RAM 0 and just the time will be checked
+        {
             // Search for a new free RAM payer for this recipient
             auto newRamBy_itr = getFreeRAMPayer(usedRAM, time, currentTime, _ram);
             check(newRamBy_itr != _ram.end(), "No RAM payer for this time span.");
