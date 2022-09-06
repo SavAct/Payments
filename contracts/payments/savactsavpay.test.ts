@@ -59,8 +59,8 @@ function testContractIni() {
       // Create accounts
       nirvana = await AccountManager.createAccount(nirvana_name)
       user = [
-        await AccountManager.createAccount('user.zero'),
-        await AccountManager.createAccount('user.one'),
+        await AccountManager.createAccount('user.zero', { privateKey: '5KUbBzUD3kDRSQ4riyCNqJePG7kGZqRdQUXN2z8WKaZXMWDTe6e' }),
+        await AccountManager.createAccount('user.one', { privateKey: '5K4MTxjPbRhDJNsRf5VRmapmrLR67cs1ZpWmsT8vsFMgxA2k59q' }),
         await AccountManager.createAccount('user.two'),
         await AccountManager.createAccount('user.three'),
         await AccountManager.createAccount('user.four'),

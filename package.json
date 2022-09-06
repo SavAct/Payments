@@ -12,7 +12,7 @@
   "author": "",
   "license": "",
   "devDependencies": {
-    "@types/chai": "latest",
+    "@types/chai": "^4.3.3",
     "@types/mocha": "latest",
     "chai": "latest",
     "prettier": "^2.7.1"
@@ -28,6 +28,6 @@
     "eosjs-ecc": "^4.0.7",
     "lamington": "https://github.com/Alien-Worlds/lamington.git",
     "node-fetch": "^3.2.10",
-    "typescript": "^4.4.3"
+    "typescript": "^4.8.2"
   }
 }

@@ -368,7 +368,7 @@ vector<char> savactsavpay::getSenderVecFrom(const name& user) {
 
 vector<char> savactsavpay::getSenderVecFrom(const string& user) {
     // Get sender as vector
-    if (user.size() == 8) {
+    if (user.size() <= 13) {
         // Sender is a name
         name _name(user);
         check(is_account(_name), "Sender does not exist.");
