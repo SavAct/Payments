@@ -176,6 +176,7 @@ function testPaymentSystem() {
           chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
           chai.expect(item.from).equal(nameToFromHex(user[0].name), 'Wrong sender')
           chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+          chai.expect(item.orisent).equal(sendAsset.amount, 'Originally sent amount is wrong')
           chai.expect(String(item.id)).equal(String(0), 'Wrong id')
           chai.expect(item.memo).equal('', 'There should no memo be defined')
           chai.expect(item.ramBy).equal(contract.account.name, 'Wrong RAM payer')
@@ -248,6 +249,7 @@ function testPaymentSystem() {
             chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
             chai.expect(item.from).equal(Key1Hex, 'Wrong sender')
             chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+            chai.expect(item.orisent).equal(sendAsset.amount, 'Originally sent amount is wrong')
             chai.expect(String(item.id)).equal(String(id), 'Wrong id') // id = ((uint64_t)from.data()) ^ ((currentTime << 32)  & tapos_block_prefix()); if id is already taken then id-- until it is unused
             if (item.memo) {
               chai.expect(item.memo).equal('@new?key;format! from k1 to user_2', 'The memo is wrong')
@@ -309,6 +311,7 @@ function testPaymentSystem() {
             chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
             chai.expect(item.from).equal(nameToFromHex(user[0].name), 'Wrong sender')
             chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+            chai.expect(item.orisent).equal(sendAsset.amount, 'Originally sent amount is wrong')
             chai.expect(String(item.id)).equal(String(id), 'Wrong id')
             if (item.memo) {
               chai.expect(item.memo).equal('@new?key;format! from user_0 to k1', 'The memo is wrong')
@@ -379,6 +382,7 @@ function testPaymentSystem() {
             chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
             chai.expect(item.from).equal(Key1Hex, 'Wrong sender')
             chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
+            chai.expect(item.orisent).equal(sendAsset.amount, 'Originally sent amount is wrong')
             chai.expect(String(item.id)).equal(String(id), 'Wrong id')
             if (item.memo) {
               chai.expect(item.memo).equal('@new?key;format! from k1 to k1_2', 'The memo is wrong')

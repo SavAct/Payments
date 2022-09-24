@@ -55,6 +55,7 @@ export interface SavactsavpayPay2key {
 	from: string;
 	to: string;
 	fund: string;
+	orisent: number|string;
 	contract: string|number;
 	time: number;
 	memo: string;
@@ -66,6 +67,7 @@ export interface SavactsavpayPay2name {
 	id: number|string;
 	from: string;
 	fund: string;
+	orisent: number|string;
 	contract: string|number;
 	time: number;
 	memo: string;

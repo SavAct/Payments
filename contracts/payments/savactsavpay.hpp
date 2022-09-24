@@ -13,10 +13,10 @@
 #include "eosioHandler.hpp"
 
 // Consumed RAM without scope and without memo
-#define ram_pay2name_entry_from_name 166 // Name to name 54 + 112 bytes new entry
-#define ram_pay2name_entry_from_key 192  // Key to name 80 + 112 bytes new entry
-#define ram_pay2key_entry_from_name 193  // Name to key 81 + 112 bytes new entry
-#define ram_pay2key_entry_from_key 219   // Key to key 107 bytes + 112 bytes new entry
+#define ram_pay2name_entry_from_name 174 // Name to name 54 + 120 bytes new entry
+#define ram_pay2name_entry_from_key 200  // Key to name 80 + 120 bytes new entry
+#define ram_pay2key_entry_from_name 201  // Name to key 81 + 120 bytes new entry
+#define ram_pay2key_entry_from_key 227   // Key to key 107 bytes + 120 bytes new entry
 
 #define ram_scope 112                   // Consumed RAM for a new scope with 8 byte scope value
 #define ram_system_token_open_entry 240 // Consumed RAM to receive system tokens for the first time
@@ -63,6 +63,7 @@ private:
         uint64_t id;       // 8 bytes
         vector<char> from; // 35 bytes | 9 bytes
         asset fund;        // 16 bytes
+        uint64_t orisent;  // 8 bytes
         name contract;     // 8 bytes
         uint32_t time;     // 4 bytes
         string memo;       // variable bytes
@@ -82,6 +83,7 @@ private:
         vector<char> from; // 35 bytes | 9 bytes
         vector<char> to;   // 27 bytes
         asset fund;        // 16 bytes
+        uint64_t orisent;  // 8 bytes
         name contract;     // 8 bytes
         uint32_t time;     // 4 bytes
         string memo;       // variable bytes
@@ -294,12 +296,13 @@ public:
      * @param from Sender as account name or public key
      * @param to Recipient as name
      * @param fund Asset of the token involved
+     * @param orisent Originally sent amount
      * @param token_contract Contract of the token
      * @param memo Memo which will be set on pay off of the recipient
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
+    void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
     /**
      * @brief Add a payment to pay2key-table.
      *
@@ -307,12 +310,13 @@ public:
      * @param from Sender as account name or public key
      * @param to_vec Recipient as public key without the part which is used as scope
      * @param fund Asset of the token involved
+     * @param orisent Originally sent amount
      * @param token_contract Contract of the token
      * @param memo Memo which will be set on pay off of the recipient
      * @param time Time limit in which the payment can be invalidated
      * @param ram_payer Account name which pays the RAM
      */
-    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
+    void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
 
     /**
      * @brief Get the sender (user) as char vector and check if the sender is valid
