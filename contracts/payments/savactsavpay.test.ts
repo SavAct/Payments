@@ -37,7 +37,7 @@ const pubKey1R1 = priKey1R1.getPublicKey()
 console.log('Legacy K1', pubKey1K1.toLegacyString())
 console.log('K1', pubKey1K1.toString())
 console.log('R1', pubKey1R1.toString())
-const mainNetChainId = 'aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906'
+const mainNetChainId = '8be32650b763690b95b7d7e32d7637757a0a7392ad04f1c393872e525a2ce82b' // mainnet: 'aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906'
 
 let inOneDay: number = Math.round(Date.now() / 1000 + 3600 * 24)
 let inTwoDays: number = Math.round(Date.now() / 1000 + 3600 * 24 * 2)

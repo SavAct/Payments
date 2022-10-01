@@ -1,0 +1,600 @@
+{
+    "____comment": "This file was generated with eosio-abigen. DO NOT EDIT ",
+    "version": "eosio::abi/1.2",
+    "types": [],
+    "structs": [
+        {
+            "name": "data",
+            "base": "",
+            "fields": [
+                {
+                    "name": "scopeId",
+                    "type": "uint64"
+                },
+                {
+                    "name": "nextId",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "extend",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "time",
+                    "type": "uint32"
+                }
+            ]
+        },
+        {
+            "name": "extendsig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "public_key"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "time",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "finalize",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "finalizesig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "invalidate",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "invalisig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "pay2key",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "from",
+                    "type": "bytes"
+                },
+                {
+                    "name": "to",
+                    "type": "bytes"
+                },
+                {
+                    "name": "fund",
+                    "type": "asset"
+                },
+                {
+                    "name": "orisent",
+                    "type": "uint64"
+                },
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "time",
+                    "type": "uint32"
+                },
+                {
+                    "name": "memo",
+                    "type": "string"
+                },
+                {
+                    "name": "ramBy",
+                    "type": "name"
+                },
+                {
+                    "name": "type",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "pay2name",
+            "base": "",
+            "fields": [
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "from",
+                    "type": "bytes"
+                },
+                {
+                    "name": "fund",
+                    "type": "asset"
+                },
+                {
+                    "name": "orisent",
+                    "type": "uint64"
+                },
+                {
+                    "name": "contract",
+                    "type": "name"
+                },
+                {
+                    "name": "time",
+                    "type": "uint32"
+                },
+                {
+                    "name": "memo",
+                    "type": "string"
+                },
+                {
+                    "name": "ramBy",
+                    "type": "name"
+                },
+                {
+                    "name": "type",
+                    "type": "uint8"
+                }
+            ]
+        },
+        {
+            "name": "payoff",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "payoffall",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "name"
+                },
+                {
+                    "name": "token_contract",
+                    "type": "name"
+                },
+                {
+                    "name": "token_symbol",
+                    "type": "symbol"
+                },
+                {
+                    "name": "memo",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "payoffallsig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "public_key"
+                },
+                {
+                    "name": "token_contract",
+                    "type": "name"
+                },
+                {
+                    "name": "token_symbol",
+                    "type": "symbol"
+                },
+                {
+                    "name": "recipient",
+                    "type": "name"
+                },
+                {
+                    "name": "memo",
+                    "type": "string"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "payoffnewacc",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "public_key"
+                },
+                {
+                    "name": "user_pub_key",
+                    "type": "public_key"
+                },
+                {
+                    "name": "user_name",
+                    "type": "name"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "payoffsig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "string"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "recipient",
+                    "type": "name"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "ram",
+            "base": "",
+            "fields": [
+                {
+                    "name": "from",
+                    "type": "name"
+                },
+                {
+                    "name": "amount",
+                    "type": "uint64"
+                },
+                {
+                    "name": "free",
+                    "type": "uint64"
+                },
+                {
+                    "name": "maxTime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "relative",
+                    "type": "bool"
+                }
+            ]
+        },
+        {
+            "name": "reject",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "name"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "rejectsig",
+            "base": "",
+            "fields": [
+                {
+                    "name": "to",
+                    "type": "public_key"
+                },
+                {
+                    "name": "id",
+                    "type": "uint64"
+                },
+                {
+                    "name": "sigtime",
+                    "type": "uint32"
+                },
+                {
+                    "name": "sig",
+                    "type": "signature"
+                }
+            ]
+        },
+        {
+            "name": "removeram",
+            "base": "",
+            "fields": [
+                {
+                    "name": "from",
+                    "type": "name"
+                },
+                {
+                    "name": "to",
+                    "type": "name"
+                }
+            ]
+        },
+        {
+            "name": "removetoken",
+            "base": "",
+            "fields": [
+                {
+                    "name": "tokenContract",
+                    "type": "name"
+                },
+                {
+                    "name": "tokenSymbol",
+                    "type": "symbol"
+                }
+            ]
+        },
+        {
+            "name": "settoken",
+            "base": "",
+            "fields": [
+                {
+                    "name": "tokenContract",
+                    "type": "name"
+                },
+                {
+                    "name": "tokenSymbol",
+                    "type": "symbol"
+                },
+                {
+                    "name": "openBytes",
+                    "type": "uint32"
+                },
+                {
+                    "name": "active",
+                    "type": "bool"
+                }
+            ]
+        },
+        {
+            "name": "tokens",
+            "base": "",
+            "fields": [
+                {
+                    "name": "token",
+                    "type": "symbol"
+                },
+                {
+                    "name": "openBytes",
+                    "type": "uint32"
+                },
+                {
+                    "name": "active",
+                    "type": "bool"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "name": "extend",
+            "type": "extend",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "extendsig",
+            "type": "extendsig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "finalize",
+            "type": "finalize",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "finalizesig",
+            "type": "finalizesig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "invalidate",
+            "type": "invalidate",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "invalisig",
+            "type": "invalisig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "payoff",
+            "type": "payoff",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "payoffall",
+            "type": "payoffall",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "payoffallsig",
+            "type": "payoffallsig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "payoffnewacc",
+            "type": "payoffnewacc",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "payoffsig",
+            "type": "payoffsig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "reject",
+            "type": "reject",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "rejectsig",
+            "type": "rejectsig",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "removeram",
+            "type": "removeram",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "removetoken",
+            "type": "removetoken",
+            "ricardian_contract": ""
+        },
+        {
+            "name": "settoken",
+            "type": "settoken",
+            "ricardian_contract": ""
+        }
+    ],
+    "tables": [
+        {
+            "name": "data",
+            "type": "data",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "pay2key",
+            "type": "pay2key",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "pay2name",
+            "type": "pay2name",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "ram",
+            "type": "ram",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "tokens",
+            "type": "tokens",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        }
+    ],
+    "kv_tables": {},
+    "ricardian_clauses": [],
+    "variants": [],
+    "action_results": []
+}

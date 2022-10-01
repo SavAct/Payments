@@ -1,4 +1,12 @@
-#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+
+#ifndef dev
+// Production mode
+#define chainIDAndContractName "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906 savactsavpay"
+#else
+// Developer mode
+#define chainIDAndContractName "8be32650b763690b95b7d7e32d7637757a0a7392ad04f1c393872e525a2ce82b savactsavpay"
+#endif
 
 #include <eosio/eosio.hpp>
 #include <eosio/asset.hpp>
@@ -30,12 +38,13 @@ using namespace std;
 using namespace eosio;
 
 constexpr name nirvana = name("stake.savact");
+constexpr name receiveSellRamAccount = name("eosio.ram"); // Payments from this account to this contract will not be handled as SavPay transactions
+
 
 // Parameters for account creation
 static constexpr uint64_t ramForUser = 4000;     // Bytes of RAM
 static constexpr uint64_t netCostForUser = 5000; // amount in system token
 static constexpr uint64_t cpuCostForUser = 5000; // amount in system token
-static constexpr char chainIDAndContractName[] = "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906 savactsavpay";
 
 CONTRACT savactsavpay : public contract
 {
@@ -1357,7 +1366,7 @@ public:
 
     void customDeposit(const name& from, const name& to, const asset& fund, const string& memo) {
         // Filter everything except incoming
-        if (from == get_self() || to != get_self())
+        if (from == get_self() || from == receiveSellRamAccount || to != get_self())
             return;
 
         check(memo.length() > 0, "Empty memo."); // Accept only payments with a memo
@@ -1378,7 +1387,7 @@ public:
             }
         break;
         case Conversion::ActionType::RAM:
-            check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, 'RAM can only be bought via system token');
+            check(token_contract == System_Token_Contract && fund.symbol == System_Symbol, "RAM can only be bought via system token");
             check(p.hasTo, "Missing beneficiary.");
             check(p.hasTime, "Missing time parameter.");
             setRam(from, name(p.to), fund, p.time, p.isTimeRelative);
