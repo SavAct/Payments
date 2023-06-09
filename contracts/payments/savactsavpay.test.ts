@@ -5,7 +5,7 @@
 
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader, sleep } from 'lamington'
 import * as chai from 'chai'
-import { Savactsavpay, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
+import { Savactsavpay, SavactsavpayLink, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
 import { Systemdummy } from '../systemdummy/systemdummy'
 import { PublicKey } from 'eosjs/dist/PublicKey'
@@ -61,13 +61,13 @@ function testContractIni() {
       user = [
         await AccountManager.createAccount('user.zero', { privateKey: '5KUbBzUD3kDRSQ4riyCNqJePG7kGZqRdQUXN2z8WKaZXMWDTe6e' }),
         await AccountManager.createAccount('user.one', { privateKey: '5K4MTxjPbRhDJNsRf5VRmapmrLR67cs1ZpWmsT8vsFMgxA2k59q' }),
-        await AccountManager.createAccount('user.two'),
-        await AccountManager.createAccount('user.three'),
-        await AccountManager.createAccount('user.four'),
-        await AccountManager.createAccount('user.five'),
-        await AccountManager.createAccount('user.six'),
-        await AccountManager.createAccount('user.seven'),
-        await AccountManager.createAccount('user.eight'),
+        await AccountManager.createAccount('user.two', { privateKey: '5JMCs2kv3gWv3FudmxWLuubDHjU15S4dNcNFeh4J9BBDXXBKUrq' }),
+        await AccountManager.createAccount('user.three', { privateKey: '5HxyviT4hHpGEcLmMEjZvjkUdcawgBoz4hk1HKYnQjQ2hpvZ4pa' }),
+        await AccountManager.createAccount('user.four', { privateKey: '5KSygi1NJHiMSxAdzfSNEsn7nscSAMpxKf9FgXnoAnsZZFWfYsS' }),
+        await AccountManager.createAccount('user.five', { privateKey: '5JArry2Uua7TCbsRumzU9aXchA4K1v4MtcsDfhak4xPzb6TLMRQ' }),
+        await AccountManager.createAccount('user.six', { privateKey: '5HrB5DZPxjzAYoD1LXn9vPMUkLaVbpyTaEC9ecabvyXzrLxLiCr' }),
+        await AccountManager.createAccount('user.seven', { privateKey: '5KQPkDm1Whh6KnwNG3YD4sy4aMN62KjZQEjQap95xVizStbfMP3' }),
+        await AccountManager.createAccount('user.eight', { privateKey: '5J3VMi3R477dXd9ieoVacV8JWf6fTrqX5whgHqAVQ1LWnwG8Fx1' }),
       ]
       // Check if all keys are available
       for (let u of user) {
@@ -336,6 +336,8 @@ function testPaymentSystem() {
         before(async () => {
           if (user[2].publicKey) {
             recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+          } else {
+            console.error('No public key for user 2')
           }
         })
         it('should fail with invalid key length 1', async () => {
@@ -371,7 +373,7 @@ function testPaymentSystem() {
         it('should fail with R1 sender and receiver key 8', async () => {
           await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `${pubKey1R1.toString()}@${recipient2PubK1.toString()}!${inOneDayBs58}`, { from: user[0] }), 'Please, use a public key that beginns with EOS or PUB_K1_.')
         })
-        it('should update pay2name table 9', async () => {
+        it('should update pay2key table 9', async () => {
           const splitKey3K1 = splitPubKeyToScopeAndTableVec(recipient2PubK1)
           const Key1Hex = pubKey1K1.toElliptic().getPublic(true, 'hex') + '00'
           let {
@@ -380,10 +382,10 @@ function testPaymentSystem() {
 
           const testPay2KeyTable = (item: SavactsavpayPay2key, id: number) => {
             chai.expect(item.contract).equal(sys_token.contract.account.name, 'Wrong token contract')
-            chai.expect(item.from).equal(Key1Hex, 'Wrong sender')
+            chai.expect(String(item.id)).equal(String(id), 'Wrong id')
+            chai.expect(item.from).equal(Key1Hex, 'Wrong sender on id ' + id)
             chai.expect(stringToAsset(item.fund).amount).below(sendAsset.amount, 'Send amount is wrong')
             chai.expect(item.orisent).equal(sendAsset.amount, 'Originally sent amount is wrong')
-            chai.expect(String(item.id)).equal(String(id), 'Wrong id')
             if (item.memo) {
               chai.expect(item.memo).equal('@new?key;format! from k1 to k1_2', 'The memo is wrong')
             } else {
@@ -2746,6 +2748,7 @@ function testCustomToken() {
     })
   })
 }
+
 function testVote() {
   let inOneDay: number
   let inOneDayBs58: string
@@ -2809,11 +2812,146 @@ function testVote() {
   })
 }
 
+function testPublicVote() {
+  let inOneHour: number, inOneDay: number
+  let voteId: number
+  let recoAsset0: Asset
+  let recoAssetZero: Asset
+  let recoTokenContract: string
+  let vote_options0: Array<string>, vote_options1: Array<string>
+  let vote_links: Array<SavactsavpayLink>
+  let inOneMin: number
+  let in11min: number
+  describe('Public vote', () => {
+    before(async () => {
+      voteId = 34
+      inOneHour = Math.floor(Date.now() / 1000) + 3600
+      inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
+      recoAsset0 = new Asset(0, sys_token.symbol)
+      recoAssetZero = new Asset(1000, sys_token.symbol)
+      recoTokenContract = sys_token.contract.account.name
+      vote_options0 = ['A', 'B', 'C']
+      vote_options1 = ['', '', 'C']
+      vote_links = [
+        { platform: 'Telegram', note: 'Use this for comments', url: 't.me/savact' },
+        { platform: 'Youtube', note: 'Here you find the live video', url: 'https://www.youtube.com/channel/UC13wgATCxJZWAsZc310rzRw' },
+        { platform: 'Twitter', note: '', url: 'https://twitter.com/SavActHQ' },
+      ]
+    })
+
+    // Set system token to accepted list
+    context('add', async () => {
+      context('A/11', async () => {
+        it('should fail with auth error 1', async () => {
+          await assertMissingAuthority(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[4] }))
+        })
+        it('should succeed with user 0 as holder 2', async () => {
+          await contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] })
+        })
+        it('should succeed with user 0 as holder, zero recommended amount and minimum time limits 3', async () => {
+          inOneMin = Math.round(Date.now() / 1000) + 60 + 3
+          in11min = inOneMin + 600
+          await contract.addvote(user[1].name, voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
+        })
+        it('should update votes table 4', async () => {
+          await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
+            {
+              index: 0,
+              holder: user[0].name,
+              t: inOneDay,
+              vt: inOneHour,
+              vid: voteId,
+              rtoken: recoAsset0.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_options0,
+              links: vote_links,
+            },
+            {
+              index: 1,
+              holder: user[1].name,
+              vt: inOneMin,
+              t: in11min,
+              vid: voteId,
+              rtoken: recoAssetZero.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_options1,
+              links: vote_links,
+            },
+          ])
+        })
+        it('should fail with too short vote time 5', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, Math.round(Date.now() / 1000) + 55, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote has to be at least 1 min.')
+        })
+        it('should fail with too long finalize time 6', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, Math.round(Date.now() / 1000) + 4 * 365 * 24 * 3600 + 24 * 3600, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote should be less than 4 years.')
+        })
+        it('should fail with too short finalize time after vote time ends 7', async () => {
+          const inOneMin = Math.round(Date.now() / 1000) + 60 + 3
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneMin, inOneMin + 599, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'Finalisation time has to be at least 10 min after the end of the vote.')
+        })
+        it('should fail with only one options 8', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, ['only one option'], vote_links, { from: user[0] }), 'Not enough options defined.')
+        })
+        it('should fail with no link platform name 9', async () => {
+          const vote_links_tooshort = [{ platform: '', note: 'Use this for comments', url: 't.me/savact' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_tooshort, { from: user[0] }), 'There is no platform name.')
+        })
+        it('should fail with too long link platform name 10', async () => {
+          const vote_links_toolong = [{ platform: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', note: 'Use this for comments', url: 't.me/savact' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_toolong, { from: user[0] }), 'The platform name is too long.')
+        })
+        it('should fail with no link platform name 11', async () => {
+          const vote_links_noUrl = [{ platform: 'Telegram', note: '', url: '' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_noUrl, { from: user[0] }), 'URL is invalid.')
+        })
+      })
+    })
+
+    context('remove', async () => {
+      context('B/6', async () => {
+        it('should fail with auth error 1', async () => {
+          await assertMissingAuthority(contract.removevote(user[1].name, 1, { from: user[0] }))
+        })
+        it('should fail on no existing entry 2', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 2, { from: user[1] }), 'Entry does not exist.')
+        })
+        it('should fail with wrong holder name 3', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 0, { from: user[1] }), 'Wrong holder.')
+        })
+        it('should fail because vote time is not over 4', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 1, { from: user[1] }), 'Vote time is not over, yet.')
+        })
+        it('should succeed with user 1 as holder 5', async () => {
+          await waitUntil(inOneMin)
+          await contract.removevote(user[1].name, 1, { from: user[1] })
+        })
+        it('should update votes table 6', async () => {
+          await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
+            {
+              index: 0,
+              holder: user[0].name,
+              t: inOneDay,
+              vt: inOneHour,
+              vid: voteId,
+              rtoken: recoAsset0.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_options0,
+              links: vote_links,
+            },
+          ])
+        })
+      })
+    })
+  })
+}
+
 testContractIni()
+
 testPaymentSystem()
 testRAMSettings()
 testCustomToken()
 testVote()
+testPublicVote()
 
 /**
  * Check if the system token balance of a user changed as expected and update the balance in the provided user object
@@ -2859,8 +2997,8 @@ async function waitUntil(timeStamp: number) {
   const currentMsTime = Date.now()
   const currentTimeForWait = Math.floor(currentMsTime / 1000)
   if (currentTimeForWait < timeStamp + 0.5) {
-    console.log(`\nWait for ${timeStamp * 1000 - currentMsTime + 500} ms to reach time limit`)
-    await sleep(timeStamp * 1000 - currentMsTime + 500)
+    console.log(`\nWait for ${msTime - currentMsTime + 500} ms to reach time limit`)
+    await sleep(msTime - currentMsTime + 500)
   }
 }
 
@@ -2907,7 +3045,7 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
 
 // Memo parameters on payments to the contract:
 // from? @to !time ;memo? | :abstimmungen?
-// RAM@to !time | .relative_time
+// RAM@to !time | /relative_time
 // FIN@to_pub #id =sig_time ~sig
 // REJ@to_pub #id =sig_time ~sig
 // INV@to_pub #id =sig_time ~sig
@@ -2933,3 +3071,5 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
 // contract.removeram
 // contract.settoken
 // contract.removetoken
+// contract.addvote
+// contract.removevote

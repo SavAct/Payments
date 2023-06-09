@@ -13,8 +13,8 @@
   "license": "",
   "devDependencies": {
     "@types/chai": "^4.3.3",
-    "@types/mocha": "latest",
-    "chai": "latest",
+    "@types/mocha": "^10.0.1",
+    "chai": "^4.3.7",
     "prettier": "^2.7.1"
   },
   "dependencies": {

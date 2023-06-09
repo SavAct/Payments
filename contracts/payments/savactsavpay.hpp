@@ -1,4 +1,4 @@
-// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
 
 #ifndef dev
 // Production mode
@@ -48,6 +48,13 @@ static constexpr uint64_t cpuCostForUser = 5000; // amount in system token
 
 CONTRACT savactsavpay : public contract
 {
+public:
+    struct Link {
+        string platform;
+        string url;
+        string note;
+    };
+
 private:
     /**
      * @brief Table of all allowed tokens.
@@ -62,6 +69,20 @@ private:
         auto primary_key() const { return token.raw(); }
     };
     typedef multi_index<name("tokens"), tokens> tokens_table;
+
+    TABLE votes{
+        uint64_t index;
+        name holder;
+        uint8_t vid;
+        uint32_t t;
+        uint32_t vt;
+        asset rtoken;
+        name rtcontract;
+        vector<string> options;
+        vector<Link> links;
+        auto primary_key() const { return index; }
+    };
+    typedef multi_index<name("votes"), votes> votes_table;
 
     /**
      * @brief Table for all payments to an account name
@@ -1083,6 +1104,79 @@ public:
             // Delete entry
             eraseItr(get_self(), _pay2key, itr);
         }
+    }
+
+    /**
+     * @brief Add vote data to a public list
+     *
+     * @param holder Vote holder
+     * @param vid vote id
+     * @param vt recommended time for a vote
+     * @param t deadline for invalidations
+     * @param rtoken recommended fund. If zero, them it recommends only the token.
+     * @param rtcontract Token contract of the recommended token.
+     * @param options Vote options
+     * @param links Links to the channels of the vote holder
+     */
+    ACTION addvote(const name& holder, const uint8_t vid, const uint32_t vt, const uint32_t t, const asset& rtoken, const name rtcontract, const vector<string>& options, const vector<Link>& links) {
+        require_auth(holder);
+        const name self = get_self();
+
+        // check options
+        check(options.size() > 1, "Not enough options defined.");
+
+        // check if rtoken with rtcontract is available
+        uint32_t ramToOpenEntry(0);
+        check(isTokenAcceptedPayIn(self, rtcontract, rtoken.symbol, ramToOpenEntry), "Token is not accepted.");
+
+        // Check time limits
+        check(t - vt >= 600, "Finalisation time has to be at least 10 min after the end of the vote.");
+        const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(vt - currentTime >= 60, "The time for a vote has to be at least 1 min.");
+        check(t - currentTime <= 3600 * 24 * 365 * 4, "The time for a vote should be less than 4 years.");
+
+        // Check if the links are valid
+        for (Link link : links) {
+            check(link.platform.length() > 0, "There is no platform name.");
+            check(link.platform.length() < 32, "The platform name is too long.");
+            check(link.url.length() > 1 && (link.url[0] == '#' || link.url.find('.') != std::string::npos), "URL is invalid.");
+        }
+
+        // Add entry, while the holder is the RAM payer
+        votes_table _vote(self, self.value);
+        _vote.emplace(holder, [&](auto& p) {
+            p.index = _vote.available_primary_key();
+            p.holder = holder,
+            p.vt = vt;
+            p.vid = vid;
+            p.t = t;
+            p.rtoken = rtoken;
+            p.rtcontract = rtcontract;
+            p.options = options;
+            p.links = links;
+        });
+    }
+
+    /**
+     * @brief Remove vote from a public list. This can only be done after the deadline has end
+     *
+     * @param index Primary key of the vote entry
+     */
+    ACTION removevote(const name& holder, const uint64_t index) {
+        require_auth(holder);
+
+        // Get entry
+        votes_table _vote(get_self(), get_self().value);
+        auto itr = _vote.find(index);
+
+        // Check the parameters
+        check(itr != _vote.end(), "Entry does not exist.");
+        check(itr->holder == holder, "Wrong holder.");
+        const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+        check(itr->vt < currentTime, "Vote time is not over, yet.");
+
+        // remove entry
+        _vote.erase(itr);
     }
 
     /**
