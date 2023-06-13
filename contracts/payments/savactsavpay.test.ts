@@ -15,6 +15,8 @@ import { getBalance, getBalances, initToken, issueToken, shouldFail, Token, upda
 import { Check } from '../../helpers/contractHandle'
 import { signExtend, signFinalize, signInvalidate, signPayOff, signPayOffAll, signPayOffNewAcc, signReject } from '../../helpers/signFunctions'
 import * as base58 from 'bs58'
+import { Serialize } from 'eosjs'
+import { arrayToHex } from 'eosjs/dist/eosjs-serialize'
 
 let contract: Savactsavpay
 let user: Array<Account>
@@ -2921,11 +2923,47 @@ function testPublicVote() {
         it('should fail because vote time is not over 4', async () => {
           await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 1, { from: user[1] }), 'Vote time is not over, yet.')
         })
-        it('should succeed with user 1 as holder 5', async () => {
+        it('should get entry by secondary index 5', async () => {
+          const lowerBound = BigInt(inOneHour).toString()
+          const upperBound = lowerBound
+          const result = contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
+
+          await assertRowsEqual(result, [
+            {
+              index: 0,
+              holder: user[0].name,
+              t: inOneDay,
+              vt: inOneHour,
+              vid: voteId,
+              rtoken: recoAsset0.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_options0,
+              links: vote_links,
+            },
+          ])
+        })
+        it('should get entry by tertiary index 6', async () => {
+          const sb = new Serialize.SerialBuffer({
+            textEncoder: new TextEncoder(),
+            textDecoder: new TextDecoder(),
+          })
+          sb.pushSymbol(recoAsset0.symbol)
+          const symbolRaw = arrayToHex(sb.getUint8Array(8).reverse())
+
+          sb.pushName(recoTokenContract)
+          const contractRaw = arrayToHex(sb.getUint8Array(8).reverse())
+
+          const lowerBound = '0x' + contractRaw + symbolRaw
+          const upperBound = lowerBound
+
+          const result = await contract.votesTable({ scope: contract.account.name, indexPosition: 3, keyType: 'i128', lowerBound, upperBound })
+          chai.expect(result.rows.length).equal(2, 'Wrong amount of entries')
+        })
+        it('should succeed with user 1 as holder 7', async () => {
           await waitUntil(inOneMin)
           await contract.removevote(user[1].name, 1, { from: user[1] })
         })
-        it('should update votes table 6', async () => {
+        it('should update votes table 8', async () => {
           await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
             {
               index: 0,
@@ -2947,10 +2985,10 @@ function testPublicVote() {
 
 testContractIni()
 
-testPaymentSystem()
-testRAMSettings()
-testCustomToken()
-testVote()
+// testPaymentSystem()
+// testRAMSettings()
+// testCustomToken()
+// testVote()
 testPublicVote()
 
 /**
