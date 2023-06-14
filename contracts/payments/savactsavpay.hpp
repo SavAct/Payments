@@ -49,10 +49,22 @@ static constexpr uint64_t cpuCostForUser = 5000; // amount in system token
 CONTRACT savactsavpay : public contract
 {
 public:
+
     struct Link {
         string platform;
         string url;
         string note;
+    };
+
+    struct OptionData {
+        string o;     // options text
+        uint8_t a;    // active
+        uint8_t f;    // finalized
+        uint8_t i;    // invalidated
+        uint8_t r;    // rejected
+        uint8_t ef;   // early finalized
+        uint8_t ei;   // early invalidate
+        uint8_t er;   // early rejected
     };
 
 private:
@@ -70,22 +82,44 @@ private:
     };
     typedef multi_index<name("tokens"), tokens> tokens_table;
 
+    /**
+     * @brief Converts vote time, vote id and the token holder name value to the secondary key
+     *
+     * @param vt Vote time
+     * @param vid vid
+     * @param holderValue Holder value
+     * @return uint64_t
+     */
+    static uint64_t toSecondary(const uint64_t vt, uint64_t vid, const vector<char>& holderValue) {
+        return (vt << 32) | (((uint64_t)(holderValue[0] | (holderValue[1] << 8) | (holderValue[2] << 16))) | (vid << 24));
+    }
+
     TABLE votes{
         uint64_t index;
-        name holder;
+        name ramBy;
+        vector<char> holder;
         uint8_t vid;
         uint32_t t;
         uint32_t vt;
         asset rtoken;
         name rtcontract;
-        vector<string> options;
+        vector<OptionData> options;
         vector<Link> links;
+
+        uint8_t a;    // active
+        uint8_t f;    // finalized
+        uint8_t i;    // invalidated
+        uint8_t r;    // rejected
+        uint8_t ef;   // early finalized
+        uint8_t ei;   // early invalidate
+        uint8_t er;   // early rejected
+
         auto primary_key() const { return index; }
-        uint64_t get_secondary_1() const { return (uint64_t)vt; }
-        uint128_t get_secondary_2() const { return (((uint128_t)(rtcontract.value)) << 64) | rtoken.symbol.raw(); }
+        uint64_t get_secondary() const { return toSecondary(vt, vid, holder.size() == 0 ? Conversion::nameToVector(ramBy) : holder); }
+        uint128_t get_tertiary() const { return (((uint128_t)(rtcontract.value)) << 64) | rtoken.symbol.raw(); }
     };
 
-    typedef multi_index < name("votes"), votes, indexed_by<name("vt"), const_mem_fun<votes, uint64_t, &votes::get_secondary_1>>, indexed_by<name("ts"), const_mem_fun<votes, uint128_t, &votes::get_secondary_2>>> votes_table;
+    typedef multi_index < name("votes"), votes, indexed_by<name("secondary"), const_mem_fun<votes, uint64_t, &votes::get_secondary>>, indexed_by<name("tertiary"), const_mem_fun<votes, uint128_t, &votes::get_tertiary>>> votes_table;
 
     /**
      * @brief Table for all payments to an account name
@@ -153,8 +187,6 @@ private:
         auto primary_key() const { return from.value; }
     };
     typedef multi_index<name("ram"), ram> ram_table;
-
-    enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 };
 
     public:
         using contract::contract;
@@ -335,7 +367,7 @@ private:
          * @param time Time limit in which the payment can be invalidated
          * @param ram_payer Account name which pays the RAM
          */
-        void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
+        void addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const Conversion::PaymentType& type = Conversion::PaymentType::payment);
         /**
          * @brief Add a payment to pay2key-table.
          *
@@ -349,7 +381,7 @@ private:
          * @param time Time limit in which the payment can be invalidated
          * @param ram_payer Account name which pays the RAM
          */
-        void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type = PaymentType::payment);
+        void addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_key, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const Conversion::PaymentType& type = Conversion::PaymentType::payment);
 
         /**
          * @brief Get the sender (user) as char vector and check if the sender is valid
@@ -567,6 +599,11 @@ private:
             auto itr = _pay2name.find(id);
             check(itr != _pay2name.end(), "Entry does not exist.");
 
+            if (itr->type == Conversion::PaymentType::checked_vote) {
+                // Change amount on public vote entry
+                voteReject(itr->memo, itr->orisent);
+            }
+
             // Reject the payment
             if (itr->from.size() == 8) {
                 // Get name of the sender
@@ -646,6 +683,11 @@ private:
             int32_t neededRam(0);
             string from_str;
 
+            if (itr->type == Conversion::PaymentType::checked_vote) {
+                // Change amount on public vote entry
+                voteReject(itr->memo, itr->orisent);
+            }
+
             // Reject the payment
             if (itr->from.size() == 8) {
                 // Get name of the sender
@@ -705,6 +747,10 @@ private:
                 // Check authority of the sender
                 require_auth(Conversion::vectorToName(itr->from));
 
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    voteFinalize(itr->memo, itr->orisent);    // Change amount on public vote entry
+                }
+
                 // Get released RAM amount
                 auto freeRAM = getRamForPayment(get_self(), true, true, itr->contract, itr->fund.symbol, itr->memo);
 
@@ -733,6 +779,11 @@ private:
 
                 // Check authority of the sender
                 require_auth(Conversion::vectorToName(itr->from));
+
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteFinalize(itr->memo, itr->orisent);
+                }
 
                 // // Get released RAM amount
                 // auto freeRAM = getRamForPayment(get_self(), true, false, itr->contract, itr->fund.symbol, itr->memo);
@@ -772,6 +823,11 @@ private:
                 check(itr->from.size() == 34, "Sender is not a public key.");
                 checkTime(itr->time);
 
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteFinalize(itr->memo, itr->orisent);
+                }
+
                 // Get public key of the sender
                 pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
@@ -800,6 +856,11 @@ private:
                 check(itr->from.size() == 34, "Wrong sender.");
                 checkTime(itr->time);
                 check(itr->to == vec_to, "Wrong public key.");
+
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteFinalize(itr->memo, itr->orisent);
+                }
 
                 // Get public key of the sender
                 pubkey = Conversion::GetPubKeyFromVector(itr->from);
@@ -839,6 +900,11 @@ private:
                 checkTime(itr->time);
                 check(itr->from.size() == 8, "Wrong sender.");
 
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteInvalidate(itr->memo, itr->orisent);
+                }
+
                 // Check authority of the sender
                 require_auth(Conversion::vectorToName(itr->from));
 
@@ -867,6 +933,11 @@ private:
                 check(itr->to == vec_to, "Wrong public key."); // Check the recipient
                 checkTime(itr->time);
                 check(itr->from.size() == 8, "Wrong sender.");
+
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteInvalidate(itr->memo, itr->orisent);
+                }
 
                 // Check authority of the sender
                 require_auth(Conversion::vectorToName(itr->from));
@@ -908,6 +979,11 @@ private:
                 check(itr->from.size() == 34, "Sender is not a public key.");
                 checkTime(itr->time);
 
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteInvalidate(itr->memo, itr->orisent);
+                }
+
                 // Get public key of the sender
                 pubkey = Conversion::GetPubKeyFromVector(itr->from);
 
@@ -936,6 +1012,11 @@ private:
                 check(itr->from.size() == 34, "Wrong sender.");
                 checkTime(itr->time);
                 check(itr->to == vec_to, "Wrong public key.");
+
+                if (itr->type == Conversion::PaymentType::checked_vote) {
+                    // Change amount on public vote entry
+                    voteInvalidate(itr->memo, itr->orisent);
+                }
 
                 // Get public key of the sender
                 pubkey = Conversion::GetPubKeyFromVector(itr->from);
@@ -1121,12 +1202,12 @@ private:
          * @param options Vote options
          * @param links Links to the channels of the vote holder
          */
-        ACTION addvote(const name& holder, const uint8_t vid, const uint32_t vt, const uint32_t t, const asset& rtoken, const name rtcontract, const vector<string>& options, const vector<Link>& links) {
-            require_auth(holder);
+        ACTION addvote(const name& ramBy, const string& holder, const uint8_t vid, const uint32_t vt, const uint32_t t, const asset& rtoken, const name rtcontract, const vector<string>& voptions, const vector<Link>& links) {
+            require_auth(ramBy);
             const name self = get_self();
 
             // check options
-            check(options.size() > 1, "Not enough options defined.");
+            check(voptions.size() > 1, "Not enough options defined.");
 
             // check if rtoken with rtcontract is available
             uint32_t ramToOpenEntry(0);
@@ -1145,28 +1226,55 @@ private:
                 check(link.url.length() > 1 && (link.url[0] == '#' || link.url.find('.') != std::string::npos), "URL is invalid.");
             }
 
+            // Create OptionData vector. On default, all int values are initialized with 0
+            vector<OptionData> op(voptions.size());
+            auto it1 = &voptions[0];
+            for (auto opItr = op.begin(); opItr != op.end(); ++opItr) {
+                opItr->o = *it1;
+                ++it1;
+            }
+
+            vector<char> holderVec;
+
+            if (holder.size() > 0) {
+                if (holder.size() <= 13) {
+                    // Holder is a name
+                    name holderName(holder);
+                    if (ramBy != holderName) {
+                        holderVec = Conversion::nameToVector(holderName);
+                    }
+                }
+                else
+                {
+                    // Holder is a public key
+                    public_key holder_key = Conversion::String_to_public_key(holder);
+                    holderVec = Conversion::GetVectorFromPubKey(holder_key);
+                }
+            }
+
             // Add entry, while the holder is the RAM payer
             votes_table _vote(self, self.value);
-            _vote.emplace(holder, [&](auto& p) {
+            _vote.emplace(ramBy, [&](auto& p) {
                 p.index = _vote.available_primary_key();
-                p.holder = holder,
+                p.ramBy = ramBy;
+                p.holder = holderVec;
                 p.vt = vt;
                 p.vid = vid;
                 p.t = t;
                 p.rtoken = rtoken;
                 p.rtcontract = rtcontract;
-                p.options = options;
+                p.options = op;
                 p.links = links;
             });
         }
 
         /**
-         * @brief Remove vote from a public list. This can only be done after the deadline has end
+         * @brief Remove vote from a public list. This can only be done after the deadline has end or if there is no active payment.
          *
          * @param index Primary key of the vote entry
          */
-        ACTION removevote(const name& holder, const uint64_t index) {
-            require_auth(holder);
+        ACTION removevote(const name& ramBy, const uint64_t index) {
+            require_auth(ramBy);
 
             // Get entry
             votes_table _vote(get_self(), get_self().value);
@@ -1174,9 +1282,11 @@ private:
 
             // Check the parameters
             check(itr != _vote.end(), "Entry does not exist.");
-            check(itr->holder == holder, "Wrong holder.");
-            const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
-            check(itr->vt < currentTime, "Vote time is not over, yet.");
+            check(itr->ramBy == ramBy, "Wrong entry owner.");
+            if (itr->a > 0) {
+                const uint32_t currentTime = eosio::current_time_point().sec_since_epoch();
+                check(itr->t < currentTime, "Time is not over, yet.");
+            }
 
             // remove entry
             _vote.erase(itr);
@@ -1454,6 +1564,67 @@ private:
          */
         static void buyRamAndReduceFund(const name& self, const name& token_contract, const int32_t neededRAM, asset& fund);
 
+
+        /**
+         * @brief Modify public vote entry for a finalization
+         *
+         * @param memo Memo form the payments table
+         * @param oriSent Originally sent asset amount
+         */
+        void voteFinalize(const string& memo, uint64_t oriSent) {
+            votes_table _vote(get_self(), get_self().value);
+            auto vsp = Conversion::GetVoteIndexAndSelected(memo);
+            auto v_itr = _vote.find(vsp.index);
+            if (v_itr != _vote.end()) {
+                _vote.modify(v_itr, same_payer, [&](auto& p) {
+                p.a -= oriSent;
+                p.f += oriSent;
+                p.options[vsp.selected].a -= oriSent;
+                p.options[vsp.selected].f += oriSent;
+                });
+            }
+        }
+
+        /**
+         * @brief Modify public vote entry for an invalidation
+         *
+         * @param memo Memo form the payments table
+         * @param oriSent Originally sent asset amount
+         */
+        void voteInvalidate(const string& memo, uint64_t oriSent) {
+            votes_table _vote(get_self(), get_self().value);
+            auto vsp = Conversion::GetVoteIndexAndSelected(memo);
+            auto v_itr = _vote.find(vsp.index);
+            if (v_itr != _vote.end()) {
+                _vote.modify(v_itr, same_payer, [&](auto& p) {
+                p.a -= oriSent;
+                p.i += oriSent;
+                p.options[vsp.selected].a -= oriSent;
+                p.options[vsp.selected].i += oriSent;
+                });
+            }
+        }
+
+        /**
+         * @brief Modify public vote entry for a rejection
+         *
+         * @param memo Memo form the payments table
+         * @param oriSent Originally sent asset amount
+         */
+        void voteReject(const string& memo, uint64_t oriSent) {
+            votes_table _vote(get_self(), get_self().value);
+            auto vsp = Conversion::GetVoteIndexAndSelected(memo);
+            auto v_itr = _vote.find(vsp.index);
+            if (v_itr != _vote.end()) {
+                _vote.modify(v_itr, same_payer, [&](auto& p) {
+                p.a -= oriSent;
+                p.r += oriSent;
+                p.options[vsp.selected].a -= oriSent;
+                p.options[vsp.selected].r += oriSent;
+                });
+            }
+        }
+
         // Notification of withdrawn and deposited tokens
         [[eosio::on_notify("*::transfer")]] void deposit_system(const name& from, const name& to, const asset& fund, const string& memo) {
             check(fund.is_valid(), "invalid quantity");
@@ -1549,11 +1720,21 @@ private:
         }
 };
 
-// Memo parameters:
-// from? @to !time ;memo? | :abstimmungen?
+// Memo parameters ("?" sign for optional parameters):
+// from? @to !time ;memo? | :votes?
 // RAM@to !time | /relative_time
 // FIN@to_pub #id =sig_time ~sig
 // EXT@to #id !time =sig_time ~sig
 // OFF@to #id =sig_time ~sig +recipient
 // ALL@to_pub =sig_time ~sig +recipient
 // ACC@to_pub =sig_time ~sig +recipient &recipient_key?
+
+// For votes, the stored memo is predefined.
+// It will be send in base58
+// [vote type]         (uint8_t)
+// [vote id]           (uint8_t)
+// [options amount]    (uint8_t)
+// [selected option]   (uint8_t)
+// [endtime]           (uint32_t)
+// [public vote index] (uint64_t)
+// [option text] (optional string)

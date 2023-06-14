@@ -13,14 +13,26 @@ export interface SavactsavpayLink {
 	note: string;
 }
 
+export interface SavactsavpayOptionData {
+	o: string;
+	a: number;
+	f: number;
+	i: number;
+	r: number;
+	ef: number;
+	ei: number;
+	er: number;
+}
+
 export interface SavactsavpayAddvote {
-	holder: string|number;
+	ramBy: string|number;
+	holder: string;
 	vid: number;
 	vt: number;
 	t: number;
 	rtoken: string;
 	rtcontract: string|number;
-	options: Array<string>;
+	voptions: Array<string>;
 	links: Array<SavactsavpayLink>;
 }
 
@@ -161,7 +173,7 @@ export interface SavactsavpayRemovetoken {
 }
 
 export interface SavactsavpayRemovevote {
-	holder: string|number;
+	ramBy: string|number;
 	index: number|string;
 }
 
@@ -180,14 +192,22 @@ export interface SavactsavpayTokens {
 
 export interface SavactsavpayVotes {
 	index: number|string;
-	holder: string|number;
+	ramBy: string|number;
+	holder: string;
 	vid: number;
 	t: number;
 	vt: number;
 	rtoken: string;
 	rtcontract: string|number;
-	options: Array<string>;
+	options: Array<SavactsavpayOptionData>;
 	links: Array<SavactsavpayLink>;
+	a: number;
+	f: number;
+	i: number;
+	r: number;
+	ef: number;
+	ei: number;
+	er: number;
 }
 
 // Added Types
@@ -196,7 +216,7 @@ export interface SavactsavpayVotes {
 
 export interface Savactsavpay extends Contract {
 	// Actions
-	addvote(holder: string|number, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, options: Array<string>, links: Array<SavactsavpayLink>, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	addvote(ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, voptions: Array<string>, links: Array<SavactsavpayLink>, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend(to: string|number, id: number|string, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig(to: string, id: number|string, time: number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -212,10 +232,10 @@ export interface Savactsavpay extends Contract {
 	rejectsig(to: string, id: number|string, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removeram(from: string|number, to: string|number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken(tokenContract: string|number, tokenSymbol: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	removevote(holder: string|number, index: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	removevote(ramBy: string|number, index: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	// Actions with object params. (This is WIP and not ready for use)
-	addvote_object_params(params: {holder: string|number, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, options: Array<string>, links: Array<SavactsavpayLink>}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	addvote_object_params(params: {ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, voptions: Array<string>, links: Array<SavactsavpayLink>}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend_object_params(params: {to: string|number, id: number|string, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig_object_params(params: {to: string, id: number|string, time: number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -231,7 +251,7 @@ export interface Savactsavpay extends Contract {
 	rejectsig_object_params(params: {to: string, id: number|string, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removeram_object_params(params: {from: string|number, to: string|number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	removetoken_object_params(params: {tokenContract: string|number, tokenSymbol: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
-	removevote_object_params(params: {holder: string|number, index: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	removevote_object_params(params: {ramBy: string|number, index: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken_object_params(params: {tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	
 	// Tables

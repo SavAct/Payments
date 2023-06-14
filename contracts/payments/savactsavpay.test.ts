@@ -5,7 +5,7 @@
 
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader, sleep } from 'lamington'
 import * as chai from 'chai'
-import { Savactsavpay, SavactsavpayLink, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
+import { Savactsavpay, SavactsavpayLink, SavactsavpayOptionData, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
 import { Systemdummy } from '../systemdummy/systemdummy'
 import { PublicKey } from 'eosjs/dist/PublicKey'
@@ -16,7 +16,7 @@ import { Check } from '../../helpers/contractHandle'
 import { signExtend, signFinalize, signInvalidate, signPayOff, signPayOffAll, signPayOffNewAcc, signReject } from '../../helpers/signFunctions'
 import * as base58 from 'bs58'
 import { Serialize } from 'eosjs'
-import { arrayToHex } from 'eosjs/dist/eosjs-serialize'
+import { SerialBuffer, arrayToHex } from 'eosjs/dist/eosjs-serialize'
 
 let contract: Savactsavpay
 let user: Array<Account>
@@ -2759,6 +2759,8 @@ function testVote() {
   let inOneHour: number
   let inOneHourBs58: string
   let ramBefore: SavactsavpayRam
+  let votememo1: string
+  let votememo2: string
   describe('Vote', () => {
     before(async () => {
       smallAsset = new Asset(200, sys_token.symbol)
@@ -2767,6 +2769,22 @@ function testVote() {
       inOneHourBs58 = toUInt32ToBase58(inOneHour)
       inOneDay = Math.round(Date.now() / 1000) + 3600 * 24
       inOneDayBs58 = toUInt32ToBase58(inOneDay)
+
+      const sb = new SerialBuffer()
+      sb.pushArray([1, 127])
+      sb.pushArray([4, 2])
+      sb.pushUint32(inOneDay - 3600)
+      const arr = sb.getUint8Array(8)
+      votememo1 = base58.encode(arr)
+
+      const sb2 = new SerialBuffer()
+      sb2.pushArray([1, 127])
+      sb2.pushArray([4, 2])
+      sb2.pushUint32(inOneDay - 3600)
+      sb2.pushString('Whats up?') // Contains byte for string length, but thta is not necessary
+      
+      const arr2 = sb2.getUint8Array(sb2.length)
+      votememo2 = base58.encode(arr2)
     })
     context('A/6', async () => {
       before(async () => {
@@ -2774,27 +2792,27 @@ function testVote() {
       })
       it('should succeed a vote from name to name 1', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 0`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:${votememo1}`, { from: user[0] })
         }, false)
       })
       it('should succeed a vote from name to name 2', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `${user[1].name}@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 1`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `${user[1].name}@${user[7].name}!${inOneDayBs58}:${votememo1}`, { from: user[0] })
         }, false)
       })
       it('should succeed a vote from key to name 3', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:Vote: from user 0 to user 7 2`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].name}!${inOneDayBs58}:${votememo2}`, { from: user[0] })
         }, false)
       })
       it('should succeed a vote from name to key 4', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].publicKey}!${inOneDayBs58}:Vote: from user 0 to user 7 key 3`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[7].publicKey}!${inOneDayBs58}:${votememo2}`, { from: user[0] })
         }, false)
       })
       it('should succeed a vote from key to key 5', async () => {
         await check.ramTrace(async () => {
-          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `PAY${priKey1K1.getPublicKey().toString()}@${user[7].publicKey}!${inOneDayBs58}:Vote: from k1 0 to user 7 key 4`, { from: user[0] })
+          return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `PAY${priKey1K1.getPublicKey().toString()}@${user[7].publicKey}!${inOneDayBs58}:${votememo2}`, { from: user[0] })
         }, false)
       })
       it('check tables 6', async () => {
@@ -2821,9 +2839,15 @@ function testPublicVote() {
   let recoAssetZero: Asset
   let recoTokenContract: string
   let vote_options0: Array<string>, vote_options1: Array<string>
+  let vote_optionsData0: Array<SavactsavpayOptionData>, vote_optionsData1: Array<SavactsavpayOptionData>
   let vote_links: Array<SavactsavpayLink>
   let inOneMin: number
   let in11min: number
+  let in11minBs58: string
+  let smallAsset: Asset
+  let smallAssetString: string
+  let votememo1: string
+
   describe('Public vote', () => {
     before(async () => {
       voteId = 34
@@ -2833,7 +2857,9 @@ function testPublicVote() {
       recoAssetZero = new Asset(1000, sys_token.symbol)
       recoTokenContract = sys_token.contract.account.name
       vote_options0 = ['A', 'B', 'C']
+      vote_optionsData0 = voteOptionToInitalOptionData(vote_options0)
       vote_options1 = ['', '', 'C']
+      vote_optionsData1 = voteOptionToInitalOptionData(vote_options1)
       vote_links = [
         { platform: 'Telegram', note: 'Use this for comments', url: 't.me/savact' },
         { platform: 'Youtube', note: 'Here you find the live video', url: 'https://www.youtube.com/channel/UC13wgATCxJZWAsZc310rzRw' },
@@ -2843,138 +2869,286 @@ function testPublicVote() {
 
     // Set system token to accepted list
     context('add', async () => {
-      context('A/11', async () => {
+      context('A/13', async () => {
         it('should fail with auth error 1', async () => {
-          await assertMissingAuthority(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[4] }))
+          await assertMissingAuthority(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[4] }))
         })
         it('should succeed with user 0 as holder 2', async () => {
-          await contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] })
+          await contract.addvote(user[0].name,  '',voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] })
         })
-        it('should succeed with user 0 as holder, zero recommended amount and minimum time limits 3', async () => {
+        it('should succeed with user 1 as holder, zero recommended amount and minimum time limits 3', async () => {
           inOneMin = Math.round(Date.now() / 1000) + 60 + 3
           in11min = inOneMin + 600
-          await contract.addvote(user[1].name, voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
+          await contract.addvote(user[1].name,  '',voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
         })
-        it('should update votes table 4', async () => {
+        it('should succeed with user 0 as ram payer and user 1 as holder 4', async () => {
+          inOneMin = Math.round(Date.now() / 1000) + 60 + 3
+          in11min = inOneMin + 600
+          await contract.addvote(user[0].name, user[1].name,voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+        })
+        it('should succeed with user 0 as ram payer and public key as holder 5', async () => {
+          inOneMin = Math.round(Date.now() / 1000) + 60 + 3
+          in11min = inOneMin + 600
+          await contract.addvote(user[0].name, pubKey1K1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+        })
+        it('should update votes table 6', async () => {
           await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
             {
               index: 0,
-              holder: user[0].name,
+              ramBy: user[0].name,
+              holder: '',
               t: inOneDay,
               vt: inOneHour,
               vid: voteId,
               rtoken: recoAsset0.toString(),
               rtcontract: recoTokenContract,
-              options: vote_options0,
+              options: vote_optionsData0,
               links: vote_links,
+              a: 0,
+              f: 0,
+              i: 0,
+              r: 0,
+              ef: 0,
+              ei: 0,
+              er: 0,
             },
             {
               index: 1,
-              holder: user[1].name,
+              ramBy: user[1].name,
+              holder: '',
               vt: inOneMin,
               t: in11min,
               vid: voteId,
               rtoken: recoAssetZero.toString(),
               rtcontract: recoTokenContract,
-              options: vote_options1,
+              options: vote_optionsData1,
               links: vote_links,
+              a: 0,
+              f: 0,
+              i: 0,
+              r: 0,
+              ef: 0,
+              ei: 0,
+              er: 0,
+            },
+            {
+              index: 2,
+              ramBy: user[0].name,
+              holder: nameToFromHex(user[1].name),
+              vt: inOneMin,
+              t: in11min,
+              vid: voteId,
+              rtoken: recoAssetZero.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_optionsData1,
+              links: vote_links,
+              a: 0,
+              f: 0,
+              i: 0,
+              r: 0,
+              ef: 0,
+              ei: 0,
+              er: 0,
+            },
+            {
+              index: 3,
+              ramBy: user[0].name,
+              holder: hexWithTypeOfPubKey(pubKey1K1),
+              vt: inOneMin,
+              t: in11min,
+              vid: voteId,
+              rtoken: recoAssetZero.toString(),
+              rtcontract: recoTokenContract,
+              options: vote_optionsData1,
+              links: vote_links,
+              a: 0,
+              f: 0,
+              i: 0,
+              r: 0,
+              ef: 0,
+              ei: 0,
+              er: 0,
             },
           ])
         })
-        it('should fail with too short vote time 5', async () => {
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, Math.round(Date.now() / 1000) + 55, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote has to be at least 1 min.')
+        it('should fail with too short vote time 7', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name,  '',voteId, Math.round(Date.now() / 1000) + 55, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote has to be at least 1 min.')
         })
-        it('should fail with too long finalize time 6', async () => {
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, Math.round(Date.now() / 1000) + 4 * 365 * 24 * 3600 + 24 * 3600, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote should be less than 4 years.')
+        it('should fail with too long finalize time 8', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneHour, Math.round(Date.now() / 1000) + 4 * 365 * 24 * 3600 + 24 * 3600, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'The time for a vote should be less than 4 years.')
         })
-        it('should fail with too short finalize time after vote time ends 7', async () => {
+        it('should fail with too short finalize time after vote time ends 9', async () => {
           const inOneMin = Math.round(Date.now() / 1000) + 60 + 3
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneMin, inOneMin + 599, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'Finalisation time has to be at least 10 min after the end of the vote.')
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneMin, inOneMin + 599, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] }), 'Finalisation time has to be at least 10 min after the end of the vote.')
         })
-        it('should fail with only one options 8', async () => {
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, ['only one option'], vote_links, { from: user[0] }), 'Not enough options defined.')
-        })
-        it('should fail with no link platform name 9', async () => {
-          const vote_links_tooshort = [{ platform: '', note: 'Use this for comments', url: 't.me/savact' }]
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_tooshort, { from: user[0] }), 'There is no platform name.')
-        })
-        it('should fail with too long link platform name 10', async () => {
-          const vote_links_toolong = [{ platform: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', note: 'Use this for comments', url: 't.me/savact' }]
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_toolong, { from: user[0] }), 'The platform name is too long.')
+        it('should fail with only one options 10', async () => {
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name,  '',voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, ['only one option'], vote_links, { from: user[0] }), 'Not enough options defined.')
         })
         it('should fail with no link platform name 11', async () => {
-          const vote_links_noUrl = [{ platform: 'Telegram', note: '', url: '' }]
-          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_noUrl, { from: user[0] }), 'URL is invalid.')
+          const vote_links_tooshort = [{ platform: '', note: 'Use this for comments', url: 't.me/savact' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_tooshort, { from: user[0] }), 'There is no platform name.')
         })
+        it('should fail with too long link platform name 12', async () => {
+          const vote_links_toolong = [{ platform: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', note: 'Use this for comments', url: 't.me/savact' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_toolong, { from: user[0] }), 'The platform name is too long.')
+        })
+        it('should fail with no link platform name 13', async () => {
+          const vote_links_noUrl = [{ platform: 'Telegram', note: '', url: '' }]
+          await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_noUrl, { from: user[0] }), 'URL is invalid.')
+        })
+        
       })
     })
 
+    context('push', async () => {
+      context('B/9', async () => {
+        before(async () => {
+          smallAsset = new Asset(200, sys_token.symbol)
+          smallAssetString = smallAsset.toString()
+          votememo1 = createPublicVoteMemo(2, voteId, vote_options1.length, 0, inOneMin, 1)
+          in11minBs58 = toUInt32ToBase58(in11min)
+        })
+        it('should fail with wrong vote type 1', async () => {
+          const wrong_type = createPublicVoteMemo(9, voteId, vote_options0.length, 0, inOneMin, 1)
+          await assertEOSErrorIncludesMessage(sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_type}`, { from: user[0] }), 'Unknown vote type.')
+        })
+        it('should fail with wrong vote index 2', async () => {
+          const wrong_index = createPublicVoteMemo(2, voteId, vote_options1.length, 0, inOneMin, 999999)
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_index}`, { from: user[0] }), 'Entry is not on public list.')
+        })
+        it('should fail with vote time higher than finalize time 3', async () => {
+          const wrong_time1 = createPublicVoteMemo(2, voteId+12, vote_options1.length + 1, 0, inOneDay, 1)
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_time1}`, { from: user[0] }), 'Vote time have to be lower than end time.')
+        })
+        it('should fail with wrong vote time 4', async () => {
+          const wrong_time2 = createPublicVoteMemo(2, voteId+12, vote_options1.length, 0, inOneMin + 1, 1)          
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_time2}`, { from: user[0] }), 'Wrong vote time.')
+        })
+        it('should fail with wrong vote id 5', async () => {
+          const wrong_id = createPublicVoteMemo(2, voteId+12, vote_options1.length + 1, 0, inOneMin, 1)
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_id}`, { from: user[0] }), 'Wrong vote id.')
+        })
+        it('should fail with wrong vote options number 6', async () => {
+          const wrong_optionsCount = createPublicVoteMemo(2, voteId, vote_options1.length + 1, 0, inOneMin, 1)
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_optionsCount}`, { from: user[0] }), 'Wrong number of options.')
+        })
+        it('should fail with wrong vote selected 7', async () => {
+          const wrong_selected = createPublicVoteMemo(2, voteId, vote_options1.length, vote_options0.length, inOneMin, 1)
+          await assertEOSErrorIncludesMessage( sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${wrong_selected}`, { from: user[0] }), 'Selected option is not available.')
+        })
+        it('should fail with wrong token 8', async () => {
+          // If no custom token devined, then deploy, initialize, issue and add it
+          if(custom_token === undefined){
+            custom_token = {
+              contract: await ContractDeployer.deployWithName<EosioToken>('contracts/eosio.token/eosio.token', 'custom.token'),
+              symbol: new Symbol('FIAT', 2),
+            }
+            await initToken(custom_token)
+            await issueToken(custom_token, [user[0], user[6], user[7]], 10000000)
+            await contract.settoken(custom_token.contract.account.name, custom_token.symbol.toString(), 240, true, { from: contract.account })
+          }
+          // Store some RAM for user 8
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[3].name, contract.account.name, sendAsset.toString(), `RAM@${user[8].name}!${inOneDayBs58}`, { from: user[3] })
+          }, false)
+          const wrong_asset = new Asset(200, custom_token.symbol)
+          await assertEOSErrorIncludesMessage( custom_token.contract.transfer(user[6].name, contract.account.name, wrong_asset.toString(), `@${user[8].name}!${in11minBs58}:${votememo1}`, { from: user[6] }), 'Wrong token.')
+        })
+        it('should succeed a public vote 9', async () => {
+          await check.ramTrace(async () => {
+            return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${votememo1}`, { from: user[0] })
+          }, false)
+        })
+
+        // TODO: Check if finalized transaction (to a key) can be finalized twice, same for invaidated (to a key) and rejected (from a key).
+        // TODO: Already finalized votes that got rejected should be considered properly in public votes table. 
+      })
+    })
     context('remove', async () => {
-      context('B/6', async () => {
+      context('C/8', async () => {
         it('should fail with auth error 1', async () => {
           await assertMissingAuthority(contract.removevote(user[1].name, 1, { from: user[0] }))
         })
         it('should fail on no existing entry 2', async () => {
-          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 2, { from: user[1] }), 'Entry does not exist.')
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 9999, { from: user[1] }), 'Entry does not exist.')
         })
-        it('should fail with wrong holder name 3', async () => {
-          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 0, { from: user[1] }), 'Wrong holder.')
+        it('should fail with wrong entry owner name 3', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 0, { from: user[1] }), 'Wrong entry owner.')
         })
-        it('should fail because vote time is not over 4', async () => {
-          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 1, { from: user[1] }), 'Vote time is not over, yet.')
+        it('should succeed on public vote where no one participated 4', async () => {
+          await contract.removevote(user[0].name, 0, { from: user[0] })
         })
-        it('should get entry by secondary index 5', async () => {
-          const lowerBound = BigInt(inOneHour).toString()
-          const upperBound = lowerBound
-          const result = contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
+        it('should fail because vote time is not over 5', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 1, { from: user[1] }), 'Time is not over, yet.')
+        })
+        // it('should get entry by secondary index 5', async () => {
+        //   const lowerBound = BigInt(inOneHour).toString()
+        //   const upperBound = lowerBound
+        //   const result = contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
 
-          await assertRowsEqual(result, [
-            {
-              index: 0,
-              holder: user[0].name,
-              t: inOneDay,
-              vt: inOneHour,
-              vid: voteId,
-              rtoken: recoAsset0.toString(),
-              rtcontract: recoTokenContract,
-              options: vote_options0,
-              links: vote_links,
-            },
-          ])
-        })
-        it('should get entry by tertiary index 6', async () => {
-          const sb = new Serialize.SerialBuffer({
-            textEncoder: new TextEncoder(),
-            textDecoder: new TextDecoder(),
-          })
-          sb.pushSymbol(recoAsset0.symbol)
-          const symbolRaw = arrayToHex(sb.getUint8Array(8).reverse())
+        //   await assertRowsEqual(result, [
+        //     {
+        //       index: 0,
+        //       ramBy: user[0].name,
+        //       holder: '',
+        //       t: inOneDay,
+        //       vt: inOneHour,
+        //       vid: voteId,
+        //       rtoken: recoAsset0.toString(),
+        //       rtcontract: recoTokenContract,
+        //       options: vote_optionsData0,
+        //       links: vote_links,
+        //       a: 0,
+        //       f: 0,
+        //       i: 0,
+        //       r: 0,
+        //       ef: 0,
+        //       ei: 0,
+        //       er: 0,
+        //     },
+        //   ])
+        // })
+        // it('should get entry by tertiary index 6', async () => {
+        //   const sb = new Serialize.SerialBuffer({
+        //     textEncoder: new TextEncoder(),
+        //     textDecoder: new TextDecoder(),
+        //   })
+        //   sb.pushSymbol(recoAsset0.symbol)
+        //   const symbolRaw = arrayToHex(sb.getUint8Array(8).reverse())
 
-          sb.pushName(recoTokenContract)
-          const contractRaw = arrayToHex(sb.getUint8Array(8).reverse())
+        //   sb.pushName(recoTokenContract)
+        //   const contractRaw = arrayToHex(sb.getUint8Array(8).reverse())
 
-          const lowerBound = '0x' + contractRaw + symbolRaw
-          const upperBound = lowerBound
+        //   const lowerBound = '0x' + contractRaw + symbolRaw
+        //   const upperBound = lowerBound
 
-          const result = await contract.votesTable({ scope: contract.account.name, indexPosition: 3, keyType: 'i128', lowerBound, upperBound })
-          chai.expect(result.rows.length).equal(2, 'Wrong amount of entries')
-        })
+        //   const result = await contract.votesTable({ scope: contract.account.name, indexPosition: 3, keyType: 'i128', lowerBound, upperBound })
+        //   chai.expect(result.rows.length).equal(2, 'Wrong amount of entries')
+        // })
         it('should succeed with user 1 as holder 7', async () => {
-          await waitUntil(inOneMin)
+          await waitUntil(in11min + 1)
           await contract.removevote(user[1].name, 1, { from: user[1] })
         })
         it('should update votes table 8', async () => {
           await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
             {
               index: 0,
-              holder: user[0].name,
+              ramBy: user[0].name,
+              holder: '',
               t: inOneDay,
               vt: inOneHour,
               vid: voteId,
               rtoken: recoAsset0.toString(),
               rtcontract: recoTokenContract,
-              options: vote_options0,
+              options: vote_optionsData0,
               links: vote_links,
+              a: 0,
+              f: 0,
+              i: 0,
+              r: 0,
+              ef: 0,
+              ei: 0,
+              er: 0,
             },
           ])
         })
@@ -2983,13 +3157,29 @@ function testPublicVote() {
   })
 }
 
-testContractIni()
+function voteOptionToInitalOptionData(options: Array<string>) {
+  return options.map((v) => {
+    return { o: v, a: 0, f: 0, i: 0, r: 0, ef: 0, ei: 0, er: 0 }
+  })
+}
 
-// testPaymentSystem()
-// testRAMSettings()
-// testCustomToken()
-// testVote()
-testPublicVote()
+/**
+ * Create the memo which is sent on a payment that relates to a publlic vote
+ * @param type Vote type
+ * @param id Vote id
+ * @param optionsCount Number of vote options  
+ * @param selected Selected option number
+ * @param voteTime Vote end time
+ * @param index Primary key of the public votes table
+ * @returns 
+ */
+function createPublicVoteMemo(type: number, id: number, optionsCount: number, selected: number, voteTime: number, index: number){
+  const sb = new SerialBuffer()
+  sb.pushArray([type, id, optionsCount, selected])
+  sb.pushUint32(voteTime)
+  sb.pushNumberAsUint64(index)
+  return base58.encode(sb.getUint8Array(16))
+}
 
 /**
  * Check if the system token balance of a user changed as expected and update the balance in the provided user object
@@ -3080,6 +3270,14 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
   }
   return ramEntry
 }
+
+testContractIni()
+
+testPaymentSystem()
+testRAMSettings()
+testCustomToken()
+testVote()
+testPublicVote()
 
 // Memo parameters on payments to the contract:
 // from? @to !time ;memo? | :abstimmungen?

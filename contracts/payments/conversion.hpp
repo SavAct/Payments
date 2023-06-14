@@ -15,6 +15,8 @@ public:
         WebAuthN = 2
     };
 
+    enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 };
+
     /** Convert the pulic key from string to public key type.
      *	@return The public key. Returns the type on public_key.index()
      */
@@ -316,7 +318,7 @@ public:
      * @returns Hex string
      */
     template <class T>
-    static string vec_to_hex(vector<T> vec) {
+    static string vec_to_hex(const vector<T>& vec) {
         const char hex_chars[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
         char hexArray[vec.size() * 2];
         char* hex_c = hexArray;
@@ -342,6 +344,18 @@ public:
         return name(*nameValue);
     }
 
+    /**
+     * @brief Convert a name to a char vector.
+     *
+     * @param nameN Name
+     * @return Char vector of the name
+     */
+    static vector<char> nameToVector(const name& nameN) {
+        const char* namePtr = reinterpret_cast<const char*>(&nameN.value);
+        const size_t nameSize = sizeof(nameN.value);
+        return vector<char>(namePtr, namePtr + nameSize);
+    }
+
     enum ActionType {
         PAY,
         RAM,
@@ -353,6 +367,8 @@ public:
         INV,
         EXT,
     };
+
+    // enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 };
 
     struct PaymentParams {
         bool hasFrom = false;
@@ -376,6 +392,20 @@ public:
         uint32_t sigTime;
         name recipient;
         public_key recipientPublicKey;
+    };
+
+    struct VoteShortParameters {
+        uint8_t selected;
+        uint64_t index;
+    };
+
+
+    struct VoteParameters : VoteShortParameters {
+        PaymentType type;
+        uint8_t id;
+        uint8_t optionCount;
+        uint32_t endtime;
+        string rest;
     };
 
     /**
@@ -578,5 +608,43 @@ public:
         }
         GetParameter(p, std::string(last_it, it), lastType);
         return p;
+    }
+
+    static VoteShortParameters GetVoteIndexAndSelected(string text) {
+        std::vector<unsigned char> vch(text.size());
+        check(Base58::DecodeBase58(text.c_str(), vch), "Error on decoding vote parameters.");
+        return VoteShortParameters{vch[3], uint64_t(*reinterpret_cast<const uint32_t*>(vch.data() + 8))};
+    }
+
+    static VoteParameters GetVoteParameters(string text) {
+        VoteParameters vp;
+
+        std::vector<unsigned char> vch(text.size());
+        check(Base58::DecodeBase58(text.c_str(), vch), "Error on decoding vote parameters.");
+
+        // Get vote type
+        auto itr = vch.begin();
+        switch (*itr) {
+        case 0x01: vp.type = PaymentType::vote; break;
+        case 0x02: vp.type = PaymentType::checked_vote; break;
+        default: check(false, "Unknown vote type.");
+        }
+        // Get all other parameters
+        vp.id = *(++itr);
+        vp.optionCount = *(++itr);
+        vp.selected = *(++itr);
+
+        // Extraktion des uint32_t
+        vp.endtime = uint32_t(*reinterpret_cast<const uint32_t*>(vch.data() + 4));
+
+        if (vp.type == PaymentType::checked_vote) {
+            // Extraktion des uint64_t
+            vp.index = uint64_t(*reinterpret_cast<const uint32_t*>(vch.data() + 8));
+            vp.rest = string(vch.begin() + 16, vch.end());
+        }
+        else {
+            vp.rest = string(vch.begin() + 8, vch.end());
+        }
+        return vp;
     }
 };

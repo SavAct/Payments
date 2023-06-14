@@ -168,12 +168,24 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     // Consider the maximal amount of RAM which could be needed for all options and check if token is accepted
     auto neededRAM = getRamForPayment(get_self(), isName_From, isName_To, token_contract, fund.symbol, memo, true);
 
-    PaymentType pT = is_vote ? PaymentType::vote : PaymentType::payment;
+    Conversion::PaymentType pT;
+    Conversion::VoteParameters vp;
+    if (is_vote) {
+        vp = Conversion::GetVoteParameters(memo);
+        pT = vp.type;
+        check(vp.endtime < time, "Vote time have to be lower than end time.");
+        check(vp.selected < vp.optionCount, "Selected option is not available.");
+    }
+    else {
+        pT = Conversion::PaymentType::payment;
+    }
 
     // Switch between name or key recipient
+    public_key to_key;
+    name to_name;
     if (isName_To) {
         // Recipient is a name
-        name to_name(to);
+        to_name = name(to);
         uint64_t to_scope = to_name.value;
         check(is_account(to_name), "Recipient does not exists.");
 
@@ -228,7 +240,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     else
     {
         // Recipient is a key
-        auto to_key = Conversion::String_to_public_key(to);
+        to_key = Conversion::String_to_public_key(to);
 
         // Get scope and rest of the key
         uint64_t to_scope;
@@ -253,6 +265,31 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
 
         // Add payment to table
         addpayment(_pay2key, index, fromVec, to_vec, fund, orisent, token_contract, memo, time, get_self(), pT);
+    }
+
+    if (pT == Conversion::PaymentType::checked_vote) {
+        // Find vote entry on public list
+        votes_table _vote(get_self(), get_self().value);
+        auto v_itr = _vote.find(vp.index);
+        check(v_itr != _vote.end(), "Entry is not on public list.");
+        check(v_itr->vt == vp.endtime, "Wrong vote time.");
+        check(v_itr->vid == vp.id, "Wrong vote id.");
+        check(v_itr->options.size() == vp.optionCount, "Wrong number of options.");
+        check(v_itr->rtcontract == token_contract && v_itr->rtoken.symbol == fund.symbol, "Wrong token.");
+        if (v_itr->holder.size() == 0) {
+            check(isName_To && v_itr->ramBy == to_name, "Wrong recipient.");
+        }
+        else
+        {
+            auto toVec = isName_To ? Conversion::nameToVector(to_name) : Conversion::GetVectorFromPubKey(to_key);
+            check(std::equal(toVec.begin(), toVec.end(), v_itr->holder.begin()), "Wrong recipient.");
+        }
+
+        // Add amount to public vote entry
+        _vote.modify(v_itr, same_payer, [&](auto& p) {
+            p.a += orisent;
+            p.options[vp.selected].a += orisent;
+            });
     }
 }
 
@@ -419,7 +456,7 @@ bool savactsavpay::isTokenAcceptedPayIn(const name& self, const name& token_cont
     return false;
 }
 
-void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type) {
+void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const vector<char>& from, const name& to, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const Conversion::PaymentType& type) {
     check(memo.size() < 256, "Memo is too long.");
     check(fund.amount > 0, "Fund is too small.");
 
@@ -437,7 +474,7 @@ void savactsavpay::addpayment(pay2name_table& table, const uint64_t index, const
         });
 }
 
-void savactsavpay::addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const PaymentType& type) {
+void savactsavpay::addpayment(pay2key_table& table, const uint64_t index, const vector<char>& from, const vector<char>& to_vec, const asset& fund, const uint64_t orisent, const name& token_contract, const string& memo, const uint32_t time, const name& ram_payer, const Conversion::PaymentType& type) {
     check(memo.size() < 256, "Memo is too long.");
     check(fund.amount > 0, "Fund is too small.");
 
