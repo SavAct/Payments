@@ -401,6 +401,7 @@ public:
 
 
     struct VoteParameters : VoteShortParameters {
+        string decoded;
         PaymentType type;
         uint8_t id;
         uint8_t optionCount;
@@ -610,13 +611,23 @@ public:
         return p;
     }
 
-    static VoteShortParameters GetVoteIndexAndSelected(string text) {
-        std::vector<unsigned char> vch(text.size());
-        check(Base58::DecodeBase58(text.c_str(), vch), "Error on decoding vote parameters.");
-        return VoteShortParameters{vch[3], uint64_t(*reinterpret_cast<const uint32_t*>(vch.data() + 8))};
+    /**
+     * @brief Get the vote index and selected vote option
+     *
+     * @param text Decoded memo entry
+     * @return VoteShortParameters
+     */
+    static VoteShortParameters GetVoteIndexAndSelected(const string& text) {
+        return VoteShortParameters{(uint8_t)text[3], uint64_t(*reinterpret_cast<const uint32_t*>(&text[8]))};
     }
 
-    static VoteParameters GetVoteParameters(string text) {
+    /**
+     * @brief Get all vote parameters of a base58 encoded memo
+     *
+     * @param text base58 encoded memo
+     * @return VoteParameters
+     */
+    static VoteParameters GetVoteParameters(const string& text) {
         VoteParameters vp;
 
         std::vector<unsigned char> vch(text.size());
@@ -645,6 +656,8 @@ public:
         else {
             vp.rest = string(vch.begin() + 8, vch.end());
         }
+
+        vp.decoded = string(vch.begin(), vch.end());
         return vp;
     }
 };

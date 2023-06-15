@@ -50,12 +50,21 @@ export class Check {
     }
   }
 
-  public async ramTrace(action: () => Promise<any>, checkless = true, checksamereceiver = true) {
+  public async ramTrace(action: () => Promise<any>, checkless = true, checksamereceiver = true, traceUser?: string) {
     const ram_before = (await EOSManager.api.rpc.get_account(this.contract.account.name)).ram_usage
+    let ram_user_before: number = 0
+    if(traceUser){
+      ram_user_before = (await EOSManager.api.rpc.get_account(traceUser)).ram_usage
+    }
     const r = await action()
     const ram_after = (await EOSManager.api.rpc.get_account(this.contract.account.name)).ram_usage
     const ram_delta = ram_after - ram_before
     let ramlog = `RAM delta ${ram_delta}`
+
+    if(traceUser){
+      const ram_user_after = (await EOSManager.api.rpc.get_account(traceUser)).ram_usage
+      ramlog += ` (${traceUser} ${ram_user_after - ram_user_before})`
+    }
 
     // console.log('action_traces...', r.processed.action_traces)
     // console.log('account_ram_deltas...', r.processed.action_traces[0].account_ram_deltas)

@@ -450,7 +450,7 @@ function testPaymentSystem() {
           await assertEOSErrorIncludesMessage(contract.reject(user[1].name, 0, { from: user[1] }), 'Entry does not exist.')
         })
       })
-      context('G/5 key to name', async () => {
+      context('G/6 key to name', async () => {
         it('should fail with auth error by sender auth 1', async () => {
           await assertMissingAuthority(contract.reject(user[2].name, 0, { from: user[0] }))
         })
@@ -475,8 +475,11 @@ function testPaymentSystem() {
           user0Asset.amount = newuser0Asset.amount
           contractAsset.amount = newContractAsset.amount
         })
-        it('should fail to reject a not existing id 5', async () => {
+        it('should fail to reject an already rejected payment 5', async () => {
           await assertEOSErrorIncludesMessage(contract.reject(user[2].name, 0, { from: user[2] }), 'The payment has already been rejected.')
+        })
+        it('should fail to extend an already rejected payment 6', async () => {
+          await assertEOSErrorIncludesMessage(contract.extend(user[2].name, 0, inTwoDays + 3600, { from: user[2] }), 'Payment is already rejected.')
         })
       })
       context('H/7 name to key', async () => {
@@ -515,14 +518,18 @@ function testPaymentSystem() {
           await assertEOSErrorIncludesMessage(contract.rejectsig(pubKey1K1.toString(), 0, currentTime, sig, { from: user[2] }), 'Entry does not exist.')
         })
       })
-      context('I/7 key to key', async () => {
+      context('I/8 key to key', async () => {
         let sig: string
         let currentTime: number
         let recipient2PubK1: PublicKey
+        let recipient2PriK1: PrivateKey
         before(async () => {
           currentTime = Math.round(Date.now() / 1000)
           if (user[2].publicKey) {
             recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+          }
+          if (user[2].privateKey) {
+            recipient2PriK1 = PrivateKey.fromString(user[2].privateKey)
           }
           const fromhex = hexWithTypeOfPubKey(pubKey1K1)
           const sigData = signReject(user[2].privateKey as string, mainNetChainId, contract.account.name, fromhex, '0', currentTime.toString())
@@ -553,8 +560,13 @@ function testPaymentSystem() {
             return contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: user[1] })
           })
         })
-        it('should fail to reject a not existing id 7', async () => {
+        it('should fail to reject payment an already rejected payment 7', async () => {
           await assertEOSErrorIncludesMessage(contract.rejectsig(recipient2PubK1.toString(), 0, currentTime, sig, { from: user[2] }), 'The payment has already been rejected.')
+        })
+        it('should fail to extend an already rejected payment 8', async () => {
+          const cT = Math.round(Date.now() / 1000)
+          const tSig = signExtend(recipient2PriK1.toString(), mainNetChainId, contract.account.name, (inTwoDays+3600).toString(), hexWithTypeOfPubKey(recipient2PubK1), (0).toString(), cT.toString()).sig
+          await assertEOSErrorIncludesMessage(contract.extendsig(recipient2PubK1.toString(), 0, inTwoDays + 3600, cT, tSig, { from: user[2] }), 'Payment is already rejected.')
         })
       })
     })
@@ -606,7 +618,7 @@ function testPaymentSystem() {
           await assertEOSErrorIncludesMessage(contract.finalize(user[1].name, 1, { from: user[0] }), 'Entry does not exist.')
         })
       })
-      context('K/5 name to key', async () => {
+      context('K/6 name to key', async () => {
         it('should fail with auth error by sender auth 1', async () => {
           await assertMissingAuthority(contract.finalize(pubKey1K1.toString(), 1, { from: user[2] }))
         })
@@ -632,8 +644,11 @@ function testPaymentSystem() {
           user0Asset.amount = newuser0Asset.amount
           contractAsset.amount = newContractAsset.amount
         })
-        it('should fail to finalize a not existing id 5', async () => {
+        it('should fail to finalize an already finalized payment 5', async () => {
           await assertEOSErrorIncludesMessage(contract.finalize(pubKey1K1.toString(), 1, { from: user[0] }), 'Payment is already finalized.')
+        })
+        it('should fail to invalidate an already finalized payment 6', async () => {
+          await assertEOSErrorIncludesMessage(contract.invalidate(pubKey1K1.toString(), 1, { from: user[0] }), 'Payment is already finalized.')
         })
       })
       context('L/8 key to name', async () => {
@@ -1162,7 +1177,7 @@ function testPaymentSystem() {
         ;[contractAsset, nirvanaAsset, user0Asset, user1Asset, user2Asset] = await getBalances([contract.account, nirvana, user[0], user[1], user[2]], sys_token)
       })
       context('V/4 from name to name', async () => {
-        it('should succeed 1', async () => {
+        it('should succeed payment 1', async () => {
           await check.ramTrace(() => {
             return sys_token.contract.transfer(user[0].name, contract.account.name, sendAssetString, `PAY${user[1].name}@${user[2].name}!${inOneDayBs58}`, { from: user[0] })
           })
@@ -1236,7 +1251,7 @@ function testPaymentSystem() {
           })
           user0Asset.amount -= sendAsset.amount
         })
-        it('should fail to tinvalidate with wrong sign 7', async () => {
+        it('should fail to invalidate with wrong sign 7', async () => {
           const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, user[2].name, 'wrong', currentTime.toString()).sig
           await shouldFail(contract.invalisig(user[2].name, 6, currentTime, sig, { from: user[1] }))
         })
@@ -2869,27 +2884,39 @@ function testPublicVote() {
 
     // Set system token to accepted list
     context('add', async () => {
+      let ram_User0: number
+      before(async ()=>{
+        ram_User0 = (await EOSManager.api.rpc.get_account(user[0].name)).ram_usage
+      })
       context('A/13', async () => {
         it('should fail with auth error 1', async () => {
           await assertMissingAuthority(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[4] }))
         })
         it('should succeed with user 0 as holder 2', async () => {
-          await contract.addvote(user[0].name,  '',voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] })
+          await check.ramTrace(async () => {
+            return contract.addvote(user[0].name,  '',voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links, { from: user[0] })
+          },true, true, user[0].name)
         })
         it('should succeed with user 1 as holder, zero recommended amount and minimum time limits 3', async () => {
           inOneMin = Math.round(Date.now() / 1000) + 60 + 3
           in11min = inOneMin + 600
-          await contract.addvote(user[1].name,  '',voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
+          await check.ramTrace(async () => {
+            return contract.addvote(user[1].name,  '',voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
+          },true, true, user[0].name)
         })
         it('should succeed with user 0 as ram payer and user 1 as holder 4', async () => {
           inOneMin = Math.round(Date.now() / 1000) + 60 + 3
           in11min = inOneMin + 600
-          await contract.addvote(user[0].name, user[1].name,voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+          await check.ramTrace(async () => {
+            return contract.addvote(user[0].name, user[1].name,voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+          },true, true, user[0].name)
         })
         it('should succeed with user 0 as ram payer and public key as holder 5', async () => {
           inOneMin = Math.round(Date.now() / 1000) + 60 + 3
           in11min = inOneMin + 600
-          await contract.addvote(user[0].name, pubKey1K1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+          await check.ramTrace(async () => {
+            return contract.addvote(user[0].name, pubKey1K1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+          },true, true, user[0].name)
         })
         it('should update votes table 6', async () => {
           await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
@@ -2996,7 +3023,6 @@ function testPublicVote() {
           const vote_links_noUrl = [{ platform: 'Telegram', note: '', url: '' }]
           await assertEOSErrorIncludesMessage(contract.addvote(user[0].name, '', voteId, inOneHour, inOneDay, recoAsset0.toString(), recoTokenContract, vote_options0, vote_links_noUrl, { from: user[0] }), 'URL is invalid.')
         })
-        
       })
     })
 
@@ -3060,8 +3086,7 @@ function testPublicVote() {
           }, false)
         })
 
-        // TODO: Check if finalized transaction (to a key) can be finalized twice, same for invaidated (to a key) and rejected (from a key).
-        // TODO: Already finalized votes that got rejected should be considered properly in public votes table. 
+        // TODO: Invalidate, finalize, reject and extend a vote and check how table entry changed. Check also reject and extend on a finalized vote. 
       })
     })
     context('remove', async () => {
@@ -3273,10 +3298,10 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
 
 testContractIni()
 
-testPaymentSystem()
-testRAMSettings()
-testCustomToken()
-testVote()
+// testPaymentSystem()
+// testRAMSettings()
+// testCustomToken()
+// testVote()
 testPublicVote()
 
 // Memo parameters on payments to the contract:

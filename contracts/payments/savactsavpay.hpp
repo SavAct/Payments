@@ -1,4 +1,4 @@
-// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
 
 #ifndef dev
 // Production mode
@@ -116,10 +116,12 @@ private:
 
         auto primary_key() const { return index; }
         uint64_t get_secondary() const { return toSecondary(vt, vid, holder.size() == 0 ? Conversion::nameToVector(ramBy) : holder); }
-        uint128_t get_tertiary() const { return (((uint128_t)(rtcontract.value)) << 64) | rtoken.symbol.raw(); }
+        // uint128_t get_tertiary() const { return (((uint128_t)(rtcontract.value)) << 64) | rtoken.symbol.raw(); }
     };
 
-    typedef multi_index < name("votes"), votes, indexed_by<name("secondary"), const_mem_fun<votes, uint64_t, &votes::get_secondary>>, indexed_by<name("tertiary"), const_mem_fun<votes, uint128_t, &votes::get_tertiary>>> votes_table;
+    // typedef multi_index<name("votes"), votes> votes_table;
+    typedef multi_index < name("votes"), votes, indexed_by<name("secondary"), const_mem_fun<votes, uint64_t, &votes::get_secondary>>> votes_table;
+    // typedef multi_index < name("votes"), votes, indexed_by<name("secondary"), const_mem_fun<votes, uint64_t, &votes::get_secondary>>, indexed_by<name("tertiary"), const_mem_fun<votes, uint128_t, &votes::get_tertiary>>> votes_table;
 
     /**
      * @brief Table for all payments to an account name
@@ -329,7 +331,7 @@ private:
          * @param time Time limit
          * @param is_vote True if this transaction is a vote
          */
-        void pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote = false);
+        void pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string* memo, const uint32_t time, const bool is_vote = false);
 
         /**
          * @brief Find a RAM payer. RAM cannot be sum up by several RAM payers.
@@ -570,6 +572,11 @@ private:
             check(itr->time != time, "Mentioned time limit is equal to the current one.");
             check(itr->time < time, "Cannot reduce the time limit.");
 
+            if (itr->type == Conversion::PaymentType::checked_vote && itr->time == 1) {
+                // Change amount on public vote entry
+                voteExtendFinalized(itr->memo, itr->orisent);
+            }
+
             // Extend the payment
             _pay2key.modify(itr, get_self(), [&](auto& p) {
                 p.time = time;
@@ -685,7 +692,12 @@ private:
 
             if (itr->type == Conversion::PaymentType::checked_vote) {
                 // Change amount on public vote entry
-                voteReject(itr->memo, itr->orisent);
+                if (itr->time == 1) {
+                    voteRejectFinalized(itr->memo, itr->orisent);   // If vote is already finalized
+                }
+                else {
+                    voteReject(itr->memo, itr->orisent);
+                }
             }
 
             // Reject the payment
@@ -1621,6 +1633,45 @@ private:
                 p.r += oriSent;
                 p.options[vsp.selected].a -= oriSent;
                 p.options[vsp.selected].r += oriSent;
+                });
+            }
+        }
+
+        /**
+         * @brief Modify public vote entry for a rejection after finalisation
+         *
+         * @param memo Memo form the payments table
+         * @param oriSent Originally sent asset amount
+         */
+        void voteRejectFinalized(const string& memo, uint64_t oriSent) {
+            votes_table _vote(get_self(), get_self().value);
+            auto vsp = Conversion::GetVoteIndexAndSelected(memo);
+            auto v_itr = _vote.find(vsp.index);
+            if (v_itr != _vote.end()) {
+                _vote.modify(v_itr, same_payer, [&](auto& p) {
+                p.f -= oriSent;
+                p.r += oriSent;
+                p.options[vsp.selected].f -= oriSent;
+                p.options[vsp.selected].r += oriSent;
+                });
+            }
+        }
+        /**
+         * @brief Modify public vote entry for a extension after finalisation
+         *
+         * @param memo Memo form the payments table
+         * @param oriSent Originally sent asset amount
+         */
+        void voteExtendFinalized(const string& memo, uint64_t oriSent) {
+            votes_table _vote(get_self(), get_self().value);
+            auto vsp = Conversion::GetVoteIndexAndSelected(memo);
+            auto v_itr = _vote.find(vsp.index);
+            if (v_itr != _vote.end()) {
+                _vote.modify(v_itr, same_payer, [&](auto& p) {
+                p.f -= oriSent;
+                p.a += oriSent;
+                p.options[vsp.selected].f -= oriSent;
+                p.options[vsp.selected].a += oriSent;
                 });
             }
         }

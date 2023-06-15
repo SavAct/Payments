@@ -150,14 +150,14 @@ uint32_t savactsavpay::getRamForPayment(const name& self, bool isName_From, bool
 }
 
 void savactsavpay::pay(const name& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote) {
-    pay(getSenderVecFrom(from), to, fund, token_contract, memo, time, is_vote);
+    pay(getSenderVecFrom(from), to, fund, token_contract, &memo, time, is_vote);
 }
 
 void savactsavpay::pay(const string& from, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote) {
-    pay(getSenderVecFrom(from), to, fund, token_contract, memo, time, is_vote);
+    pay(getSenderVecFrom(from), to, fund, token_contract, &memo, time, is_vote);
 }
 
-void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string& memo, const uint32_t time, const bool is_vote) {
+void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund, const name& token_contract, const string* memo, const uint32_t time, const bool is_vote) {
     uint64_t orisent = fund.amount;
     auto currentTime = eosio::current_time_point().sec_since_epoch();
     check(time > currentTime, "The mentioned time is already over.");
@@ -165,20 +165,21 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     bool isName_To = to.length() <= 13;
     bool isName_From = fromVec.size() <= 13;
 
-    // Consider the maximal amount of RAM which could be needed for all options and check if token is accepted
-    auto neededRAM = getRamForPayment(get_self(), isName_From, isName_To, token_contract, fund.symbol, memo, true);
-
     Conversion::PaymentType pT;
     Conversion::VoteParameters vp;
     if (is_vote) {
-        vp = Conversion::GetVoteParameters(memo);
+        vp = Conversion::GetVoteParameters(*memo);
         pT = vp.type;
         check(vp.endtime < time, "Vote time have to be lower than end time.");
         check(vp.selected < vp.optionCount, "Selected option is not available.");
+        memo = &(vp.decoded);
     }
     else {
         pT = Conversion::PaymentType::payment;
     }
+
+    // Consider the maximal amount of RAM which could be needed for all options and check if token is accepted
+    auto neededRAM = getRamForPayment(get_self(), isName_From, isName_To, token_contract, fund.symbol, *memo, true);
 
     // Switch between name or key recipient
     public_key to_key;
@@ -235,7 +236,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         }
 
         // Add payment to table
-        addpayment(_pay2name, index, fromVec, to_name, fund, orisent, token_contract, memo, time, ram_payer, pT);
+        addpayment(_pay2name, index, fromVec, to_name, fund, orisent, token_contract, *memo, time, ram_payer, pT);
     }
     else
     {
@@ -264,7 +265,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
         buyRamAndReduceFund(get_self(), token_contract, neededRAM, fund);
 
         // Add payment to table
-        addpayment(_pay2key, index, fromVec, to_vec, fund, orisent, token_contract, memo, time, get_self(), pT);
+        addpayment(_pay2key, index, fromVec, to_vec, fund, orisent, token_contract, *memo, time, get_self(), pT);
     }
 
     if (pT == Conversion::PaymentType::checked_vote) {
