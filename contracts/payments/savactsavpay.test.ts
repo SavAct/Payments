@@ -2862,8 +2862,8 @@ function testPublicVote() {
   let smallAsset: Asset
   let smallAssetString: string
   let votememo1: string
-  let recipient2PubK1: PublicKey
-  let recipient2PriK1: PrivateKey
+  let recipient6PubK1: PublicKey
+  let recipient6PriK1: PrivateKey
   let totalActiveN2N: Asset
   let totalActiveK2K: Asset
 
@@ -2890,11 +2890,11 @@ function testPublicVote() {
         { platform: 'Twitter', note: '', url: 'https://twitter.com/SavActHQ' },
       ]
 
-      if (user[2].publicKey) {
-        recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+      if (user[6].publicKey) {
+        recipient6PubK1 = PublicKey.fromString(user[6].publicKey)
       }
-      if (user[2].privateKey) {
-        recipient2PriK1 = PrivateKey.fromString(user[2].privateKey)
+      if (user[6].privateKey) {
+        recipient6PriK1 = PrivateKey.fromString(user[6].privateKey)
       }
     })
 
@@ -2927,7 +2927,7 @@ function testPublicVote() {
         })
         it('should succeed with user 0 as ram payer and public key as holder 5', async () => {
           await check.ramTrace(async () => {
-            return contract.addvote(user[0].name, recipient2PubK1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options3, vote_links, { from: user[0] })
+            return contract.addvote(user[0].name, recipient6PubK1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options3, vote_links, { from: user[0] })
           },true, true, user[0].name)
         })
         it('should update votes table 6', async () => {
@@ -2983,7 +2983,7 @@ function testPublicVote() {
             {
               index: 3,
               ramBy: user[0].name,
-              holder: hexWithTypeOfPubKey(recipient2PubK1),
+              holder: hexWithTypeOfPubKey(recipient6PubK1),
               vt: inOneMin,
               t: in11min,
               vid: voteId,
@@ -3098,18 +3098,18 @@ function testPublicVote() {
         })
         it('should succeed a few key to key public votes 10', async () => {
           const vmemo_k2k = [
-            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for inv'),  // key to key for invalidation
-            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for rej'),  // key to key for rejection
-            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for ext'),  // key to key for extansion
-            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for fin and rej'),  // key to key for finalization and then rejection
-            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for fin and ext'),  // key to key for finalization and then extantion
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key6 for inv'),  // key to key for invalidation
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key6 for rej'),  // key to key for rejection
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key6 for ext'),  // key to key for extansion
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key6 for fin and rej'),  // key to key for finalization and then rejection
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key6 for fin and ext'),  // key to key for finalization and then extantion
           ]
           totalActiveK2K = new Asset(smallAsset.amount*vmemo_k2k.length, smallAsset.symbol)
           vote_optionsData3[1].a = Number(vote_optionsData3[1].a) + totalActiveK2K.amount
           
           for(let vmemo of vmemo_k2k){
             await check.ramTrace(async () => {
-              return sys_token.contract.transfer(user[4].name, contract.account.name, smallAssetString, `${pubKey1K1.toLegacyString()}@${recipient2PubK1.toLegacyString()}!${in11minBs58}:${vmemo}`, { from: user[4] })
+              return sys_token.contract.transfer(user[4].name, contract.account.name, smallAssetString, `${pubKey1K1.toLegacyString()}@${recipient6PubK1.toLegacyString()}!${in11minBs58}:${vmemo}`, { from: user[4] })
             }, false, true, user[4].name)
           }
         })
@@ -3136,7 +3136,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3277,9 +3277,9 @@ function testPublicVote() {
         })
         // Invalidate
         it('should succeed invalidation 1', async () => {
-          const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '0', sigTime.toString()).sig
+          const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient6PubK1.toString(), '0', sigTime.toString()).sig
           await check.ramTrace(async () => {
-            return contract.invalisig(recipient2PubK1.toString(), 0, sigTime, sig, { from: user[4] })
+            return contract.invalisig(recipient6PubK1.toString(), 0, sigTime, sig, { from: user[4] })
           })
         })
         it('should update votes table 2', async () => {
@@ -3291,7 +3291,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3308,8 +3308,8 @@ function testPublicVote() {
         // Reject 
         it('should succeed reject 3', async () => {
           await check.ramTrace(async () => {
-            const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '1', sigTime.toString()).sig
-            return contract.rejectsig(recipient2PubK1.toString(), 1, sigTime, sig, { from: user[3] })
+            const sig = signReject(recipient6PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '1', sigTime.toString()).sig
+            return contract.rejectsig(recipient6PubK1.toString(), 1, sigTime, sig, { from: user[3] })
           })
         })
         it('should update votes table 4', async () => {
@@ -3321,7 +3321,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3338,9 +3338,9 @@ function testPublicVote() {
         // Extend
         it('should succeed extend 5', async () => {
           const inTwoDaysAndTwoH = inTwoDays + 3600
-          const sig = signExtend(recipient2PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient2PubK1), '2', sigTime.toString()).sig
+          const sig = signExtend(recipient6PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient6PubK1), '2', sigTime.toString()).sig
           await check.ramTrace(async () => {
-            return contract.extendsig(recipient2PubK1.toString(), 2, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
+            return contract.extendsig(recipient6PubK1.toString(), 2, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
           })
         })
         it('should nothing changed in votes table 6', async () => {
@@ -3349,7 +3349,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3366,14 +3366,14 @@ function testPublicVote() {
         // Finalize
         it('should succeed finalize 7', async () => {
           await check.ramTrace(async () => {
-            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '3', sigTime.toString()).sig
-            return contract.finalizesig(recipient2PubK1.toString(), 3, sigTime, sig, { from: user[3] })
+            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient6PubK1.toString(), '3', sigTime.toString()).sig
+            return contract.finalizesig(recipient6PubK1.toString(), 3, sigTime, sig, { from: user[3] })
           }, false)
         })
         it('should succeed another finalize 8', async () => {
           await check.ramTrace(async () => {
-            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '4', sigTime.toString()).sig
-            return contract.finalizesig(recipient2PubK1.toString(), 4, sigTime, sig, { from: user[3] })
+            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient6PubK1.toString(), '4', sigTime.toString()).sig
+            return contract.finalizesig(recipient6PubK1.toString(), 4, sigTime, sig, { from: user[3] })
           }, false)
         })
         it('should update votes table 9', async () => {
@@ -3385,7 +3385,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3402,9 +3402,9 @@ function testPublicVote() {
         // Extend finalized
         it('should succeed extend finalized 10', async () => {
           const inTwoDaysAndTwoH = inTwoDays + 3600
-          const sig = signExtend(recipient2PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient2PubK1), '3', sigTime.toString()).sig
+          const sig = signExtend(recipient6PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient6PubK1), '3', sigTime.toString()).sig
           await check.ramTrace(async () => {
-            return contract.extendsig(recipient2PubK1.toString(), 3, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
+            return contract.extendsig(recipient6PubK1.toString(), 3, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
           })
         })
         it('should update votes table 11', async () => {
@@ -3416,7 +3416,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3432,9 +3432,9 @@ function testPublicVote() {
         })
         // Reject finalized
         it('should succeed reject finalized 12', async () => {
-          const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '4', sigTime.toString()).sig
+          const sig = signReject(recipient6PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '4', sigTime.toString()).sig
           await check.ramTrace(async () => {
-            return contract.rejectsig(recipient2PubK1.toString(), 4, sigTime, sig, { from: user[3] })
+            return contract.rejectsig(recipient6PubK1.toString(), 4, sigTime, sig, { from: user[3] })
           })
         })
         it('should update votes table 13', async () => {
@@ -3445,7 +3445,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3461,9 +3461,9 @@ function testPublicVote() {
         })
         // Reject active
         it('should succeed reject active 14', async () => {
-          const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '3', sigTime.toString()).sig
+          const sig = signReject(recipient6PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '3', sigTime.toString()).sig
           await check.ramTrace(async () => {
-            return contract.rejectsig(recipient2PubK1.toString(), 3, sigTime, sig, { from: user[3] })
+            return contract.rejectsig(recipient6PubK1.toString(), 3, sigTime, sig, { from: user[3] })
           })
         })
         it('should update votes table 15', async () => {
@@ -3475,7 +3475,7 @@ function testPublicVote() {
           checkVoteEntry(rows[3], {
             index: 3,
             ramBy: user[0].name,
-            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            holder: hexWithTypeOfPubKey(recipient6PubK1),
             vt: inOneMin,
             t: in11min,
             vid: voteId,
@@ -3492,7 +3492,7 @@ function testPublicVote() {
       })
     })
     context('secondary request', async () => {
-      context('E/2', async () => {
+      context('E/4', async () => {
         it('should get single specific entry with holder == ram payer 1', async () => {
           const hexTime = arrayToHex(numberToUInt32(inOneHour)).padStart(8, '0')
           const hexShortName = nameToFromHex(user[0].name).substring(8, 16);
@@ -3506,11 +3506,51 @@ function testPublicVote() {
           chai.expect(rows.length).equal(1, 'Wrong number of entries found')
           chai.expect(rows[0].index).equal(0, 'Wrong index')
         })
+        it('should get single specific entry with holder != ram payer 2', async () => {
+          const hexTime = arrayToHex(numberToUInt32(inOneMin)).padStart(8, '0')
+          const hexShortName = nameToFromHex(user[3].name).substring(8, 16);
+          const hexShortDir = arrayToHex(hexToUint8Array(hexShortName).reverse())
+          const hex = '0x'+ arrayToHex(hexToUint8Array(hexTime + hexShortDir))
+          const bint = BigInt(hex).toString()
+          const lowerBound = bint
+          const upperBound = lowerBound
+          const {rows} = await contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
 
+          chai.expect(rows.length).equal(1, 'Wrong number of entries found')
+          chai.expect(rows[0].index).equal(2, 'Wrong index')
+        })
+        it('should get entry with specific key holder 3', async () => {
+          const hexTime = arrayToHex(numberToUInt32(inOneMin)).padStart(8, '0')
+          const hexKey = hexWithTypeOfPubKey(recipient6PubK1)
+          const hexShortKey = hexKey.substring(8, 16)
+          const hexShortDir = arrayToHex(hexToUint8Array(hexShortKey).reverse())
+          const hex = '0x'+ arrayToHex(hexToUint8Array(hexTime + hexShortDir))
+          const bint = BigInt(hex).toString()
+          const lowerBound = bint
+          const upperBound = lowerBound
+          const {rows} = await contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
+          chai.expect(rows.length).equal(1, 'Wrong number of entries found')
+          chai.expect(rows[0].index).equal(3, 'Wrong index')
+        })
+        it('should get all at a specific time 4', async () => {
+          const hexTime = arrayToHex(numberToUInt32(inOneMin)).padStart(8, '0')
+          const hex = '0x'+ arrayToHex(hexToUint8Array(hexTime + '00000000'))
+          const bint = BigInt(hex).toString()
+          const lowerBound = bint
+
+          const uhex = '0x'+ arrayToHex(hexToUint8Array(hexTime + 'FFFFFFFF'))
+          const ubint = BigInt(uhex).toString()
+          const upperBound = ubint
+          const {rows} = await contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
+          chai.expect(rows.length).equal(3, 'Wrong number of entries found')
+          chai.expect(rows[0].index).equal(1, 'Wrong index')
+          chai.expect(rows[1].index).equal(2, 'Wrong index')
+          chai.expect(rows[2].index).equal(3, 'Wrong index')
+        })
       })
     })
     context('remove', async () => {
-      context('F/8', async () => {
+      context('F/10', async () => {
         it('should fail with auth error 1', async () => {
           await assertMissingAuthority(contract.removevote(user[1].name, 1, { from: user[0] }))
         })
@@ -3529,29 +3569,58 @@ function testPublicVote() {
         it('should fail because vote time is not over 6', async () => {
           await assertEOSErrorIncludesMessage(contract.removevote(user[0].name, 2, { from: user[0] }), 'Time is not over, yet.')
         })
-        it('should succeed with user 1 as holder 7', async () => {
-          await waitUntil(in11min + 1)
-          await contract.removevote(user[0].name, 2, { from: user[1] })
-        })
-        it('should update votes table 8', async () => {
-          await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
-            {
-              index: 3,
-              ramBy: user[0].name,
-              holder: hexWithTypeOfPubKey(recipient2PubK1),
-              vt: inOneMin,
-              t: in11min,
-              vid: voteId,
-              rtoken: recoAssetZero.toString(),
-              rtcontract: recoTokenContract,
-              options: vote_optionsData3,
-              links: vote_links,
-              a: totalActiveK2K.amount,
-              f: 0,
-              i: smallAsset.amount,
-              r: smallAsset.amount + smallAsset.amount + smallAsset.amount,
-            },
-          ])
+        
+        context('have to wait', async () => {
+          it('12 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          })
+          it('11 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          })
+          it('10 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('9 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('8 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('7 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('6 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('5 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('4 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('3 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('2 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          }) 
+          it('1 min', async () => {
+            await waitUntil((Date.now()/1000) + 60)
+          })
+          it('should succeed to remove index 2 entry 7', async () => {
+            await contract.removevote(user[0].name, 2, { from: user[0] })
+          })
+          it('should update votes table 8', async () => {
+            const {rows} = await contract.votesTable({ scope: contract.account.name })
+            chai.expect(rows.length).equal(1, 'Wrong number of entries left')
+          })
+          it('should succeed to remove index 3 entry 9', async () => {
+            await contract.removevote(user[0].name, 3, { from: user[0] })
+          })
+          it('should update votes table 10', async () => {
+            const {rows} = await contract.votesTable({ scope: contract.account.name })
+            chai.expect(rows.length).equal(0, 'There are still entries left')
+          })
         })
       })
     })
@@ -3656,8 +3725,10 @@ async function waitUntil(timeStamp: number) {
   const msTime = timeStamp * 1000
   const currentMsTime = Date.now()
   const currentTimeForWait = Math.floor(currentMsTime / 1000)
+  const deltaTime = (msTime - currentMsTime + 500)/1000;
+  const deltaTimeStr = deltaTime > 60? `${Math.floor(deltaTime / 60)}m and ${Math.floor(deltaTime % 60)}s`: `${deltaTime}s`
   if (currentTimeForWait < timeStamp + 0.5) {
-    console.log(`\nWait for ${msTime - currentMsTime + 500} ms to reach time limit`)
+    console.log(`\nWait for ${deltaTimeStr} to reach time limit`)
     await sleep(msTime - currentMsTime + 500)
   }
 }
@@ -3705,10 +3776,10 @@ async function checkAndLogRAM(ramBeforeEntry: SavactsavpayRam, recduced: boolean
 
 testContractIni()
 
-// testPaymentSystem()
-// testRAMSettings()
-// testCustomToken()
-// testVote()
+testPaymentSystem()
+testRAMSettings()
+testCustomToken()
+testVote()
 testPublicVote()
 
 // Memo parameters on payments to the contract:

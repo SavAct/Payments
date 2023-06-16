@@ -1,7 +1,7 @@
-#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
 
 #ifndef dev
-// Production mode
+// Production mode for EOS mainnet
 #define chainIDAndContractName "aca376f206b8fc25a6ed44dbdc66547c36c6c33e3a119ffbeaef943642f0e906 savactsavpay"
 #else
 // Developer mode
