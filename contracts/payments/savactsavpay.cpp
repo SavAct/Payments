@@ -677,6 +677,15 @@ std::size_t savactsavpay::getStringStorageSize(const string& s) {
     return len + 5;
 }
 
+/**
+ * @brief Get index for a name recipient.
+ * No entry will be used twice. It counts always up until.
+ * (available_primary_key will reduced if last element will be deleted)
+ *
+ * @param self
+ * @param to_scope_name Name of the payment recipient
+ * @return uint64_t Primaray key of payments table to name
+ */
 uint64_t savactsavpay::nextNameIndex(const name& self, const name& to_scope_name) {
     data_table _data_table(self, name("name").value);
     auto itr = _data_table.find(to_scope_name.value);
@@ -696,6 +705,16 @@ uint64_t savactsavpay::nextNameIndex(const name& self, const name& to_scope_name
         return index;
     }
 }
+
+/**
+ * @brief Get index for a key recipient.
+ * No entry will be used twice. It counts always up until.
+ * (available_primary_key will reduced if last element will be deleted)
+ *
+ * @param self
+ * @param to_scope_name Scope part of the payment recipient public key
+ * @return uint64_t Primaray key of payments table to key
+ */
 uint64_t savactsavpay::nextKeyIndex(const name& self, const uint64_t to_scope_key) {
     data_table _data_table(self, name("key").value);
     auto itr = _data_table.find(to_scope_key);

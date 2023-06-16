@@ -15,13 +15,9 @@ export interface SavactsavpayLink {
 
 export interface SavactsavpayOptionData {
 	o: string;
-	a: number;
-	f: number;
-	i: number;
-	r: number;
-	ef: number;
-	ei: number;
-	er: number;
+	a: number|string;
+	c: number|string;
+	r: number|string;
 }
 
 export interface SavactsavpayAddvote {
@@ -201,13 +197,10 @@ export interface SavactsavpayVotes {
 	rtcontract: string|number;
 	options: Array<SavactsavpayOptionData>;
 	links: Array<SavactsavpayLink>;
-	a: number;
-	f: number;
-	i: number;
-	r: number;
-	ef: number;
-	ei: number;
-	er: number;
+	a: number|string;
+	f: number|string;
+	i: number|string;
+	r: number|string;
 }
 
 // Added Types

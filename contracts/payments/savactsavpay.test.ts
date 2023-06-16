@@ -5,18 +5,18 @@
 
 import { ContractDeployer, assertRowsEqual, AccountManager, Account, Contract, assertEOSErrorIncludesMessage, assertMissingAuthority, EOSManager, debugPromise, assertRowsEqualStrict, assertRowCount, assertEOSException, assertEOSError, UpdateAuth, assertRowsContain, ContractLoader, sleep } from 'lamington'
 import * as chai from 'chai'
-import { Savactsavpay, SavactsavpayLink, SavactsavpayOptionData, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam } from './savactsavpay'
+import { Savactsavpay, SavactsavpayLink, SavactsavpayOptionData, SavactsavpayPay2key, SavactsavpayPay2name, SavactsavpayRam, SavactsavpayVotes } from './savactsavpay'
 import { EosioToken } from '../eosio.token/eosio.token'
 import { Systemdummy } from '../systemdummy/systemdummy'
 import { PublicKey } from 'eosjs/dist/PublicKey'
 import { PrivateKey } from 'eosjs/dist/PrivateKey'
-import { Symbol, Asset, numberToUInt32, stringToAsset, splitPubKeyToScopeAndTableVec, nameToFromHex, hexWithTypeOfPubKey, numberToUInt64, toUInt32ToBase58 } from '../../helpers/conversions'
+import { Symbol, Asset, numberToUInt32, stringToAsset, splitPubKeyToScopeAndTableVec, nameToFromHex, hexWithTypeOfPubKey, numberToUInt64, toUInt32ToBase58, nameToUint64 } from '../../helpers/conversions'
 import { getBalance, getBalances, initToken, issueToken, shouldFail, Token, updateAuths } from '../../helpers/chainHandle'
 import { Check } from '../../helpers/contractHandle'
 import { signExtend, signFinalize, signInvalidate, signPayOff, signPayOffAll, signPayOffNewAcc, signReject } from '../../helpers/signFunctions'
 import * as base58 from 'bs58'
 import { Serialize } from 'eosjs'
-import { SerialBuffer, arrayToHex } from 'eosjs/dist/eosjs-serialize'
+import { SerialBuffer, arrayToHex, hexToUint8Array } from 'eosjs/dist/eosjs-serialize'
 
 let contract: Savactsavpay
 let user: Array<Account>
@@ -2853,8 +2853,8 @@ function testPublicVote() {
   let recoAsset0: Asset
   let recoAssetZero: Asset
   let recoTokenContract: string
-  let vote_options0: Array<string>, vote_options1: Array<string>
-  let vote_optionsData0: Array<SavactsavpayOptionData>, vote_optionsData1: Array<SavactsavpayOptionData>
+  let vote_options0: Array<string>, vote_options1: Array<string>, vote_options2: Array<string>, vote_options3: Array<string>
+  let vote_optionsData0: Array<SavactsavpayOptionData>, vote_optionsData1: Array<SavactsavpayOptionData>, vote_optionsData2: Array<SavactsavpayOptionData>, vote_optionsData3: Array<SavactsavpayOptionData>
   let vote_links: Array<SavactsavpayLink>
   let inOneMin: number
   let in11min: number
@@ -2862,6 +2862,10 @@ function testPublicVote() {
   let smallAsset: Asset
   let smallAssetString: string
   let votememo1: string
+  let recipient2PubK1: PublicKey
+  let recipient2PriK1: PrivateKey
+  let totalActiveN2N: Asset
+  let totalActiveK2K: Asset
 
   describe('Public vote', () => {
     before(async () => {
@@ -2875,11 +2879,23 @@ function testPublicVote() {
       vote_optionsData0 = voteOptionToInitalOptionData(vote_options0)
       vote_options1 = ['', '', 'C']
       vote_optionsData1 = voteOptionToInitalOptionData(vote_options1)
+      vote_options2 = ['Cake', 'Candy', 'Clowns']
+      vote_optionsData2 = voteOptionToInitalOptionData(vote_options2)      
+      vote_options3 = ['1', '2', '3']
+      vote_optionsData3 = voteOptionToInitalOptionData(vote_options3)
+      
       vote_links = [
         { platform: 'Telegram', note: 'Use this for comments', url: 't.me/savact' },
         { platform: 'Youtube', note: 'Here you find the live video', url: 'https://www.youtube.com/channel/UC13wgATCxJZWAsZc310rzRw' },
         { platform: 'Twitter', note: '', url: 'https://twitter.com/SavActHQ' },
       ]
+
+      if (user[2].publicKey) {
+        recipient2PubK1 = PublicKey.fromString(user[2].publicKey)
+      }
+      if (user[2].privateKey) {
+        recipient2PriK1 = PrivateKey.fromString(user[2].privateKey)
+      }
     })
 
     // Set system token to accepted list
@@ -2904,18 +2920,14 @@ function testPublicVote() {
             return contract.addvote(user[1].name,  '',voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[1] })
           },true, true, user[0].name)
         })
-        it('should succeed with user 0 as ram payer and user 1 as holder 4', async () => {
-          inOneMin = Math.round(Date.now() / 1000) + 60 + 3
-          in11min = inOneMin + 600
+        it('should succeed with user 0 as ram payer and user 3 as holder 4', async () => {
           await check.ramTrace(async () => {
-            return contract.addvote(user[0].name, user[1].name,voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+            return contract.addvote(user[0].name, user[3].name, voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options2, vote_links, { from: user[0] })
           },true, true, user[0].name)
         })
         it('should succeed with user 0 as ram payer and public key as holder 5', async () => {
-          inOneMin = Math.round(Date.now() / 1000) + 60 + 3
-          in11min = inOneMin + 600
           await check.ramTrace(async () => {
-            return contract.addvote(user[0].name, pubKey1K1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options1, vote_links, { from: user[0] })
+            return contract.addvote(user[0].name, recipient2PubK1.toString(), voteId, inOneMin, in11min, recoAssetZero.toString(), recoTokenContract, vote_options3, vote_links, { from: user[0] })
           },true, true, user[0].name)
         })
         it('should update votes table 6', async () => {
@@ -2935,9 +2947,6 @@ function testPublicVote() {
               f: 0,
               i: 0,
               r: 0,
-              ef: 0,
-              ei: 0,
-              er: 0,
             },
             {
               index: 1,
@@ -2954,47 +2963,38 @@ function testPublicVote() {
               f: 0,
               i: 0,
               r: 0,
-              ef: 0,
-              ei: 0,
-              er: 0,
             },
             {
               index: 2,
               ramBy: user[0].name,
-              holder: nameToFromHex(user[1].name),
+              holder: nameToFromHex(user[3].name),
               vt: inOneMin,
               t: in11min,
               vid: voteId,
               rtoken: recoAssetZero.toString(),
               rtcontract: recoTokenContract,
-              options: vote_optionsData1,
+              options: vote_optionsData2,
               links: vote_links,
               a: 0,
               f: 0,
               i: 0,
               r: 0,
-              ef: 0,
-              ei: 0,
-              er: 0,
             },
             {
               index: 3,
               ramBy: user[0].name,
-              holder: hexWithTypeOfPubKey(pubKey1K1),
+              holder: hexWithTypeOfPubKey(recipient2PubK1),
               vt: inOneMin,
               t: in11min,
               vid: voteId,
               rtoken: recoAssetZero.toString(),
               rtcontract: recoTokenContract,
-              options: vote_optionsData1,
+              options: vote_optionsData3,
               links: vote_links,
               a: 0,
               f: 0,
               i: 0,
               r: 0,
-              ef: 0,
-              ei: 0,
-              er: 0,
             },
           ])
         })
@@ -3027,7 +3027,7 @@ function testPublicVote() {
     })
 
     context('push', async () => {
-      context('B/9', async () => {
+      context('B/11', async () => {
         before(async () => {
           smallAsset = new Asset(200, sys_token.symbol)
           smallAssetString = smallAsset.toString()
@@ -3080,17 +3080,437 @@ function testPublicVote() {
           const wrong_asset = new Asset(200, custom_token.symbol)
           await assertEOSErrorIncludesMessage( custom_token.contract.transfer(user[6].name, contract.account.name, wrong_asset.toString(), `@${user[8].name}!${in11minBs58}:${votememo1}`, { from: user[6] }), 'Wrong token.')
         })
-        it('should succeed a public vote 9', async () => {
+        it('should succeed a few name to name public votes 9', async () => {
+          const vmemo_n2n = [
+            createPublicVoteMemo(2, voteId, vote_options2.length, 1, inOneMin, 2, 'user4 to user3 for inv'),  // name to name for invalidation
+            createPublicVoteMemo(2, voteId, vote_options2.length, 1, inOneMin, 2, 'user4 to user3 for rej'),  // name to name for rejection
+            createPublicVoteMemo(2, voteId, vote_options2.length, 1, inOneMin, 2, 'user4 to user3 for ext'),  // name to name for extansion
+            createPublicVoteMemo(2, voteId, vote_options2.length, 1, inOneMin, 2, 'user4 to user3 for fin'),  // name to name for finalization
+          ]
+          totalActiveN2N = new Asset(smallAsset.amount*vmemo_n2n.length, smallAsset.symbol)
+          vote_optionsData2[1].a = Number(vote_optionsData2[1].a)+totalActiveN2N.amount
+
+          for(let vmemo of vmemo_n2n){
+            await check.ramTrace(async () => {
+              return sys_token.contract.transfer(user[4].name, contract.account.name, smallAssetString, `@${user[3].name}!${in11minBs58}:${vmemo}`, { from: user[4] })
+            }, false)
+          }
+        })
+        it('should succeed a few key to key public votes 10', async () => {
+          const vmemo_k2k = [
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for inv'),  // key to key for invalidation
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for rej'),  // key to key for rejection
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for ext'),  // key to key for extansion
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for fin and rej'),  // key to key for finalization and then rejection
+            createPublicVoteMemo(2, voteId, vote_options3.length, 1, inOneMin, 3, 'keyk1 to key2 for fin and ext'),  // key to key for finalization and then extantion
+          ]
+          totalActiveK2K = new Asset(smallAsset.amount*vmemo_k2k.length, smallAsset.symbol)
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) + totalActiveK2K.amount
+          
+          for(let vmemo of vmemo_k2k){
+            await check.ramTrace(async () => {
+              return sys_token.contract.transfer(user[4].name, contract.account.name, smallAssetString, `${pubKey1K1.toLegacyString()}@${recipient2PubK1.toLegacyString()}!${in11minBs58}:${vmemo}`, { from: user[4] })
+            }, false, true, user[4].name)
+          }
+        })
+        it('should update votes table 11', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          
+          checkVoteEntry(rows[2], {
+          index: 2,
+          ramBy: user[0].name,
+          holder: nameToFromHex(user[3].name),
+          vt: inOneMin,
+          t: in11min,
+          vid: voteId,
+          rtoken: recoAssetZero.toString(),
+          rtcontract: recoTokenContract,
+          options: vote_optionsData2,
+          links: vote_links,
+          a: totalActiveN2N.amount,
+          f: 0,
+          i: 0,
+          r: 0,
+          }, ' row[2]')
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: 0,
+            r: 0,
+          }, ' row[3]')
+        })
+      })
+    })
+    context('action', async () => {
+      context('C/8 n2n', async () => {
+        // Invalidate
+        it('should succeed invalidation 1', async () => {
           await check.ramTrace(async () => {
-            return sys_token.contract.transfer(user[0].name, contract.account.name, smallAssetString, `@${user[1].name}!${in11minBs58}:${votememo1}`, { from: user[0] })
+            return contract.invalidate(user[3].name, 0, { from: user[4] })
+          })
+        })
+        it('should update votes table 2', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveN2N.amount-= smallAsset.amount
+          vote_optionsData2[1].a = Number(vote_optionsData2[1].a) - smallAsset.amount
+          vote_optionsData2[1].c = Number(vote_optionsData2[1].c) + smallAsset.amount
+          checkVoteEntry(rows[2], {
+            index: 2,
+            ramBy: user[0].name,
+            holder: nameToFromHex(user[3].name),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData2,
+            links: vote_links,
+            a: totalActiveN2N.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: 0,
+          }, ' row[2]')
+        })
+        // Reject 
+        it('should succeed reject 3', async () => {
+          await check.ramTrace(async () => {
+            return contract.reject(user[3].name, 1, { from: user[3] })
+          })
+        })
+        it('should update votes table 4', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveN2N.amount-= smallAsset.amount
+          vote_optionsData2[1].a = Number(vote_optionsData2[1].a) - smallAsset.amount
+          vote_optionsData2[1].r = Number(vote_optionsData2[1].r) + smallAsset.amount
+          checkVoteEntry(rows[2], {
+            index: 2,
+            ramBy: user[0].name,
+            holder: nameToFromHex(user[3].name),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData2,
+            links: vote_links,
+            a: totalActiveN2N.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[2]')
+        })
+        // Extend
+        it('should succeed extend 5', async () => {
+          await check.ramTrace(async () => {
+            return contract.extend(user[3].name, 2, inTwoDays + 3600, { from: user[3] })
+          })
+        })
+        it('should nothing changed in votes table 6', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          checkVoteEntry(rows[2], {
+            index: 2,
+            ramBy: user[0].name,
+            holder: nameToFromHex(user[3].name),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData2,
+            links: vote_links,
+            a: totalActiveN2N.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[2]')
+        })
+        // Finalize
+        it('should succeed finalize 7', async () => {
+          await check.ramTrace(async () => {
+            return contract.finalize(user[3].name, 3, { from: user[4] })
+          })
+        })
+        it('should update votes table 8', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveN2N.amount-= smallAsset.amount
+          vote_optionsData2[1].a = Number(vote_optionsData2[1].a) - smallAsset.amount
+          vote_optionsData2[1].c = Number(vote_optionsData2[1].c) + smallAsset.amount
+          checkVoteEntry(rows[2], {
+            index: 2,
+            ramBy: user[0].name,
+            holder: nameToFromHex(user[3].name),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData2,
+            links: vote_links,
+            a: totalActiveN2N.amount,
+            f: smallAsset.amount,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[2]')
+        })
+      })
+      context('D/15 k2k', async () => {
+        let sigTime: number
+        let smallAssetAmount2X : number
+        before(async () => {
+          sigTime = Math.round(Date.now() / 1000)
+          smallAssetAmount2X = smallAsset.amount + smallAsset.amount
+        })
+        // Invalidate
+        it('should succeed invalidation 1', async () => {
+          const sig = signInvalidate(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '0', sigTime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.invalisig(recipient2PubK1.toString(), 0, sigTime, sig, { from: user[4] })
+          })
+        })
+        it('should update votes table 2', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveK2K.amount-= smallAsset.amount
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) - smallAsset.amount
+          vote_optionsData3[1].c = Number(vote_optionsData3[1].c) + smallAsset.amount
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: 0,
+          }, ' row[3]')
+        })
+        // Reject 
+        it('should succeed reject 3', async () => {
+          await check.ramTrace(async () => {
+            const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '1', sigTime.toString()).sig
+            return contract.rejectsig(recipient2PubK1.toString(), 1, sigTime, sig, { from: user[3] })
+          })
+        })
+        it('should update votes table 4', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveK2K.amount-= smallAsset.amount
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) - smallAsset.amount
+          vote_optionsData3[1].r = Number(vote_optionsData3[1].r) + smallAsset.amount
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[3]')
+        })
+        // Extend
+        it('should succeed extend 5', async () => {
+          const inTwoDaysAndTwoH = inTwoDays + 3600
+          const sig = signExtend(recipient2PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient2PubK1), '2', sigTime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.extendsig(recipient2PubK1.toString(), 2, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
+          })
+        })
+        it('should nothing changed in votes table 6', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[3]')
+        })
+        // Finalize
+        it('should succeed finalize 7', async () => {
+          await check.ramTrace(async () => {
+            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '3', sigTime.toString()).sig
+            return contract.finalizesig(recipient2PubK1.toString(), 3, sigTime, sig, { from: user[3] })
           }, false)
         })
+        it('should succeed another finalize 8', async () => {
+          await check.ramTrace(async () => {
+            const sig = signFinalize(priKey1K1.toString(), mainNetChainId, contract.account.name, recipient2PubK1.toString(), '4', sigTime.toString()).sig
+            return contract.finalizesig(recipient2PubK1.toString(), 4, sigTime, sig, { from: user[3] })
+          }, false)
+        })
+        it('should update votes table 9', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveK2K.amount-= smallAssetAmount2X
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) - smallAssetAmount2X
+          vote_optionsData3[1].c = Number(vote_optionsData3[1].c) + smallAssetAmount2X
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: smallAssetAmount2X,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[3]')
+        })
+        // Extend finalized
+        it('should succeed extend finalized 10', async () => {
+          const inTwoDaysAndTwoH = inTwoDays + 3600
+          const sig = signExtend(recipient2PriK1.toString(), mainNetChainId, contract.account.name, inTwoDaysAndTwoH.toString(), hexWithTypeOfPubKey(recipient2PubK1), '3', sigTime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.extendsig(recipient2PubK1.toString(), 3, inTwoDaysAndTwoH, sigTime, sig, { from: user[3] })
+          })
+        })
+        it('should update votes table 11', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveK2K.amount += smallAsset.amount
+          vote_optionsData3[1].c = Number(vote_optionsData3[1].c) - smallAsset.amount
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) + smallAsset.amount
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: smallAsset.amount,
+            i: smallAsset.amount,
+            r: smallAsset.amount,
+          }, ' row[3]')
+        })
+        // Reject finalized
+        it('should succeed reject finalized 12', async () => {
+          const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '4', sigTime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.rejectsig(recipient2PubK1.toString(), 4, sigTime, sig, { from: user[3] })
+          })
+        })
+        it('should update votes table 13', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          vote_optionsData3[1].c = Number(vote_optionsData3[1].c) - smallAsset.amount
+          vote_optionsData3[1].r = Number(vote_optionsData3[1].r) + smallAsset.amount
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAssetAmount2X,
+          }, ' row[3]')
+        })
+        // Reject active
+        it('should succeed reject active 14', async () => {
+          const sig = signReject(recipient2PriK1.toString(), mainNetChainId, contract.account.name, hexWithTypeOfPubKey(pubKey1K1), '3', sigTime.toString()).sig
+          await check.ramTrace(async () => {
+            return contract.rejectsig(recipient2PubK1.toString(), 3, sigTime, sig, { from: user[3] })
+          })
+        })
+        it('should update votes table 15', async () => {
+          const {rows} = await contract.votesTable({ scope: contract.account.name })
+          chai.expect(rows.length).equal(4, 'Wrong number of public vote table entries');
+          totalActiveK2K.amount -= smallAsset.amount
+          vote_optionsData3[1].a = Number(vote_optionsData3[1].a) - smallAsset.amount
+          vote_optionsData3[1].r = Number(vote_optionsData3[1].r) + smallAsset.amount
+          checkVoteEntry(rows[3], {
+            index: 3,
+            ramBy: user[0].name,
+            holder: hexWithTypeOfPubKey(recipient2PubK1),
+            vt: inOneMin,
+            t: in11min,
+            vid: voteId,
+            rtoken: recoAssetZero.toString(),
+            rtcontract: recoTokenContract,
+            options: vote_optionsData3,
+            links: vote_links,
+            a: totalActiveK2K.amount,
+            f: 0,
+            i: smallAsset.amount,
+            r: smallAssetAmount2X + smallAsset.amount,
+          }, ' row[3]')
+        })
+      })
+    })
+    context('secondary request', async () => {
+      context('E/2', async () => {
+        it('should get single specific entry with holder == ram payer 1', async () => {
+          const hexTime = arrayToHex(numberToUInt32(inOneHour)).padStart(8, '0')
+          const hexShortName = nameToFromHex(user[0].name).substring(8, 16);
+          const hexShortDir = arrayToHex(hexToUint8Array(hexShortName).reverse())
+          const hex = '0x'+ arrayToHex(hexToUint8Array(hexTime + hexShortDir))
+          const bint = BigInt(hex).toString()
+          const lowerBound = bint
+          const upperBound = lowerBound
+          const {rows} = await contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
 
-        // TODO: Invalidate, finalize, reject and extend a vote and check how table entry changed. Check also reject and extend on a finalized vote. 
+          chai.expect(rows.length).equal(1, 'Wrong number of entries found')
+          chai.expect(rows[0].index).equal(0, 'Wrong index')
+        })
+
       })
     })
     context('remove', async () => {
-      context('C/8', async () => {
+      context('F/8', async () => {
         it('should fail with auth error 1', async () => {
           await assertMissingAuthority(contract.removevote(user[1].name, 1, { from: user[0] }))
         })
@@ -3103,77 +3523,33 @@ function testPublicVote() {
         it('should succeed on public vote where no one participated 4', async () => {
           await contract.removevote(user[0].name, 0, { from: user[0] })
         })
-        it('should fail because vote time is not over 5', async () => {
-          await assertEOSErrorIncludesMessage(contract.removevote(user[1].name, 1, { from: user[1] }), 'Time is not over, yet.')
+        it('should succeed on another public vote where no one participated 5', async () => {
+          await contract.removevote(user[1].name, 1, { from: user[1] })
         })
-        // it('should get entry by secondary index 5', async () => {
-        //   const lowerBound = BigInt(inOneHour).toString()
-        //   const upperBound = lowerBound
-        //   const result = contract.votesTable({ scope: contract.account.name, indexPosition: 2, keyType: 'i64', lowerBound, upperBound })
-
-        //   await assertRowsEqual(result, [
-        //     {
-        //       index: 0,
-        //       ramBy: user[0].name,
-        //       holder: '',
-        //       t: inOneDay,
-        //       vt: inOneHour,
-        //       vid: voteId,
-        //       rtoken: recoAsset0.toString(),
-        //       rtcontract: recoTokenContract,
-        //       options: vote_optionsData0,
-        //       links: vote_links,
-        //       a: 0,
-        //       f: 0,
-        //       i: 0,
-        //       r: 0,
-        //       ef: 0,
-        //       ei: 0,
-        //       er: 0,
-        //     },
-        //   ])
-        // })
-        // it('should get entry by tertiary index 6', async () => {
-        //   const sb = new Serialize.SerialBuffer({
-        //     textEncoder: new TextEncoder(),
-        //     textDecoder: new TextDecoder(),
-        //   })
-        //   sb.pushSymbol(recoAsset0.symbol)
-        //   const symbolRaw = arrayToHex(sb.getUint8Array(8).reverse())
-
-        //   sb.pushName(recoTokenContract)
-        //   const contractRaw = arrayToHex(sb.getUint8Array(8).reverse())
-
-        //   const lowerBound = '0x' + contractRaw + symbolRaw
-        //   const upperBound = lowerBound
-
-        //   const result = await contract.votesTable({ scope: contract.account.name, indexPosition: 3, keyType: 'i128', lowerBound, upperBound })
-        //   chai.expect(result.rows.length).equal(2, 'Wrong amount of entries')
-        // })
+        it('should fail because vote time is not over 6', async () => {
+          await assertEOSErrorIncludesMessage(contract.removevote(user[0].name, 2, { from: user[0] }), 'Time is not over, yet.')
+        })
         it('should succeed with user 1 as holder 7', async () => {
           await waitUntil(in11min + 1)
-          await contract.removevote(user[1].name, 1, { from: user[1] })
+          await contract.removevote(user[0].name, 2, { from: user[1] })
         })
         it('should update votes table 8', async () => {
           await assertRowsEqual(contract.votesTable({ scope: contract.account.name }), [
             {
-              index: 0,
+              index: 3,
               ramBy: user[0].name,
-              holder: '',
-              t: inOneDay,
-              vt: inOneHour,
+              holder: hexWithTypeOfPubKey(recipient2PubK1),
+              vt: inOneMin,
+              t: in11min,
               vid: voteId,
-              rtoken: recoAsset0.toString(),
+              rtoken: recoAssetZero.toString(),
               rtcontract: recoTokenContract,
-              options: vote_optionsData0,
+              options: vote_optionsData3,
               links: vote_links,
-              a: 0,
+              a: totalActiveK2K.amount,
               f: 0,
-              i: 0,
-              r: 0,
-              ef: 0,
-              ei: 0,
-              er: 0,
+              i: smallAsset.amount,
+              r: smallAsset.amount + smallAsset.amount + smallAsset.amount,
             },
           ])
         })
@@ -3184,8 +3560,36 @@ function testPublicVote() {
 
 function voteOptionToInitalOptionData(options: Array<string>) {
   return options.map((v) => {
-    return { o: v, a: 0, f: 0, i: 0, r: 0, ef: 0, ei: 0, er: 0 }
+    return { o: v, a: 0, c: 0, r: 0 }
   })
+}
+
+function checkVoteEntry(expect: SavactsavpayVotes, equal: SavactsavpayVotes, addedErrorMsg?:string){
+  chai.expect(expect.index).equal(equal.index, 'Wrong index'+ addedErrorMsg)
+  chai.expect(expect.ramBy).equal(equal.ramBy, 'Wrong Ram payer'+ addedErrorMsg)
+  chai.expect(expect.holder).equal(equal.holder, 'Wrong holder'+ addedErrorMsg)
+  chai.expect(expect.vt).equal(equal.vt, 'Wrong vote time'+ addedErrorMsg)
+  chai.expect(expect.t).equal(equal.t, 'Wrong time to finalize'+ addedErrorMsg)
+  chai.expect(expect.vid).equal(equal.vid, 'Wrong vote id'+ addedErrorMsg)
+  chai.expect(expect.rtoken).equal(equal.rtoken, 'Wrong recommended token'+ addedErrorMsg)
+  chai.expect(expect.rtcontract).equal(equal.rtcontract, 'Wrong token contract'+ addedErrorMsg)
+  chai.expect(expect.options.length).equal(equal.options.length, 'Wrong options length'+ addedErrorMsg)
+  for(let i = 0; i < expect.options.length; i++){
+    chai.expect(expect.options[i].o).equal(equal.options[i].o, `Wrong finalized amount before vote end at line ${i}`+ addedErrorMsg)
+    chai.expect(expect.options[i].a).equal(equal.options[i].a, `Wrong active amount at line ${i}`+ addedErrorMsg)
+    chai.expect(expect.options[i].c).equal(equal.options[i].c, `Wrong complete amount at line ${i}`+ addedErrorMsg)
+    chai.expect(expect.options[i].r).equal(equal.options[i].r, `Wrong rejected amount at line ${i}`+ addedErrorMsg)
+  }
+  chai.expect(expect.links.length).equal(equal.links.length, 'Wrong links length'+ addedErrorMsg)
+  for(let i = 0; i < expect.links.length; i++){
+    chai.expect(expect.links[i].platform).equal(equal.links[i].platform, `Wrong platform link at line ${i}`+ addedErrorMsg)
+    chai.expect(expect.links[i].note).equal(equal.links[i].note, `Wrong note link at line ${i}`+ addedErrorMsg)
+    chai.expect(expect.links[i].url).equal(equal.links[i].url, `Wrong url link at line ${i}`+ addedErrorMsg)
+  }
+  chai.expect(expect.a).equal(equal.a, 'Wrong active amount'+ addedErrorMsg)
+  chai.expect(expect.f).equal(equal.f, 'Wrong finalized amount'+ addedErrorMsg)
+  chai.expect(expect.i).equal(equal.i, 'Wrong invalidated amount'+ addedErrorMsg)
+  chai.expect(expect.r).equal(equal.r, 'Wrong rejected amount'+ addedErrorMsg)
 }
 
 /**
@@ -3198,12 +3602,15 @@ function voteOptionToInitalOptionData(options: Array<string>) {
  * @param index Primary key of the public votes table
  * @returns 
  */
-function createPublicVoteMemo(type: number, id: number, optionsCount: number, selected: number, voteTime: number, index: number){
+function createPublicVoteMemo(type: number, id: number, optionsCount: number, selected: number, voteTime: number, index: number, rest?: string){
   const sb = new SerialBuffer()
   sb.pushArray([type, id, optionsCount, selected])
   sb.pushUint32(voteTime)
   sb.pushNumberAsUint64(index)
-  return base58.encode(sb.getUint8Array(16))
+  if(rest !== undefined){
+    sb.pushString(rest)
+  }
+  return base58.encode(sb.getUint8Array(sb.length))
 }
 
 /**

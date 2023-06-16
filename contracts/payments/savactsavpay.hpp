@@ -58,13 +58,9 @@ public:
 
     struct OptionData {
         string o;     // options text
-        uint8_t a;    // active
-        uint8_t f;    // finalized
-        uint8_t i;    // invalidated
-        uint8_t r;    // rejected
-        uint8_t ef;   // early finalized
-        uint8_t ei;   // early invalidate
-        uint8_t er;   // early rejected
+        uint64_t a;    // active
+        uint64_t c;    // complete (finalized or invalidated)
+        uint64_t r;    // rejected
     };
 
 private:
@@ -83,15 +79,14 @@ private:
     typedef multi_index<name("tokens"), tokens> tokens_table;
 
     /**
-     * @brief Converts vote time, vote id and the token holder name value to the secondary key
+     * @brief Converts vote time and the token holder name value to the secondary key
      *
      * @param vt Vote time
-     * @param vid vid
      * @param holderValue Holder value
      * @return uint64_t
      */
-    static uint64_t toSecondary(const uint64_t vt, uint64_t vid, const vector<char>& holderValue) {
-        return (vt << 32) | (((uint64_t)(holderValue[0] | (holderValue[1] << 8) | (holderValue[2] << 16))) | (vid << 24));
+    static uint64_t toSecondary(const uint64_t vt, const vector<char>& holderValue) {
+        return (vt << 32) | (*((const uint32_t*)(holderValue.data() + 4)));
     }
 
     TABLE votes{
@@ -106,16 +101,13 @@ private:
         vector<OptionData> options;
         vector<Link> links;
 
-        uint8_t a;    // active
-        uint8_t f;    // finalized
-        uint8_t i;    // invalidated
-        uint8_t r;    // rejected
-        uint8_t ef;   // early finalized
-        uint8_t ei;   // early invalidate
-        uint8_t er;   // early rejected
+        uint64_t a;    // active
+        uint64_t f;    // finalized
+        uint64_t i;    // invalidated
+        uint64_t r;    // rejected
 
         auto primary_key() const { return index; }
-        uint64_t get_secondary() const { return toSecondary(vt, vid, holder.size() == 0 ? Conversion::nameToVector(ramBy) : holder); }
+        uint64_t get_secondary() const { return toSecondary(vt, holder.size() == 0 ? Conversion::nameToVector(ramBy) : holder); }
         // uint128_t get_tertiary() const { return (((uint128_t)(rtcontract.value)) << 64) | rtoken.symbol.raw(); }
     };
 
@@ -1592,7 +1584,7 @@ private:
                 p.a -= oriSent;
                 p.f += oriSent;
                 p.options[vsp.selected].a -= oriSent;
-                p.options[vsp.selected].f += oriSent;
+                p.options[vsp.selected].c += oriSent;
                 });
             }
         }
@@ -1612,7 +1604,7 @@ private:
                 p.a -= oriSent;
                 p.i += oriSent;
                 p.options[vsp.selected].a -= oriSent;
-                p.options[vsp.selected].i += oriSent;
+                p.options[vsp.selected].c += oriSent;
                 });
             }
         }
@@ -1651,7 +1643,7 @@ private:
                 _vote.modify(v_itr, same_payer, [&](auto& p) {
                 p.f -= oriSent;
                 p.r += oriSent;
-                p.options[vsp.selected].f -= oriSent;
+                p.options[vsp.selected].c -= oriSent;
                 p.options[vsp.selected].r += oriSent;
                 });
             }
@@ -1670,7 +1662,7 @@ private:
                 _vote.modify(v_itr, same_payer, [&](auto& p) {
                 p.f -= oriSent;
                 p.a += oriSent;
-                p.options[vsp.selected].f -= oriSent;
+                p.options[vsp.selected].c -= oriSent;
                 p.options[vsp.selected].a += oriSent;
                 });
             }
