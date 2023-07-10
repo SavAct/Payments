@@ -1,4 +1,4 @@
-// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
 
 #ifndef dev
 // Production mode for EOS mainnet
@@ -51,7 +51,6 @@ CONTRACT savactsavpay : public contract
 public:
 
     struct Link {
-        string platform;
         string url;
         string note;
     };
@@ -59,7 +58,7 @@ public:
     struct OptionData {
         string o;     // options text
         uint64_t a;    // active
-        uint64_t c;    // complete (finalized or invalidated)
+        uint64_t c;    // completed (finalized or invalidated)
         uint64_t r;    // rejected
     };
 
@@ -98,6 +97,7 @@ private:
         uint32_t vt;
         asset rtoken;
         name rtcontract;
+        string title;
         vector<OptionData> options;
         vector<Link> links;
 
@@ -1201,17 +1201,19 @@ private:
          * @param vid vote id
          * @param vt recommended time for a vote
          * @param t deadline for invalidations
-         * @param rtoken recommended fund. If zero, them it recommends only the token.
-         * @param rtcontract Token contract of the recommended token.
+         * @param rtoken recommended fund. If zero, them it recommends only the token
+         * @param title Title of the vote
+         * @param rtcontract Token contract of the recommended token
          * @param options Vote options
          * @param links Links to the channels of the vote holder
          */
-        ACTION addvote(const name& ramBy, const string& holder, const uint8_t vid, const uint32_t vt, const uint32_t t, const asset& rtoken, const name rtcontract, const vector<string>& voptions, const vector<Link>& links) {
+        ACTION addvote(const name& ramBy, const string& holder, const uint8_t vid, const uint32_t vt, const uint32_t t, const asset& rtoken, const name rtcontract, const string& title, const vector<string>& voptions, const vector<Link>& links) {
             require_auth(ramBy);
             const name self = get_self();
 
             // check options
             check(voptions.size() > 1, "Not enough options defined.");
+            check(title.length() <= 80, "Title is too long.");
 
             // check if rtoken with rtcontract is available
             uint32_t ramToOpenEntry(0);
@@ -1225,8 +1227,6 @@ private:
 
             // Check if the links are valid
             for (Link link : links) {
-                check(link.platform.length() > 0, "There is no platform name.");
-                check(link.platform.length() < 32, "The platform name is too long.");
                 check(link.url.length() > 1 && (link.url[0] == '#' || link.url.find('.') != std::string::npos), "URL is invalid.");
             }
 
@@ -1266,6 +1266,7 @@ private:
                 p.vid = vid;
                 p.t = t;
                 p.rtoken = rtoken;
+                p.title = title;
                 p.rtcontract = rtcontract;
                 p.options = op;
                 p.links = links;

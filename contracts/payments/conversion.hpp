@@ -618,7 +618,7 @@ public:
      * @return VoteShortParameters
      */
     static VoteShortParameters GetVoteIndexAndSelected(const string& text) {
-        return VoteShortParameters{(uint8_t)text[3], uint64_t(*reinterpret_cast<const uint32_t*>(&text[8]))};
+        return VoteShortParameters{(uint8_t)text[2], uint64_t(*reinterpret_cast<const uint32_t*>(&text[7]))};
     }
 
     /**
@@ -657,7 +657,7 @@ public:
             vp.rest = string(vch.begin() + 8, vch.end());
         }
 
-        vp.decoded = string(vch.begin(), vch.end());
+        vp.decoded = string(vch.begin() + 1, vch.end()); // Do not need to store the vote type also in the memo table entry
         return vp;
     }
 };

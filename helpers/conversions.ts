@@ -44,8 +44,8 @@ export function numberToUInt64(big_num: bigint) {
 }
 
 /**
- * Convert an EOSIO name to a big integer
- * @param name EOSIO name
+ * Convert an Antelope name to a big integer
+ * @param name Antelope name
  * @returns The number corresponding to the name
  */
 export function nameToUint64(name: string) {
@@ -54,6 +54,11 @@ export function nameToUint64(name: string) {
   return Buffer.from(buffer.asUint8Array()).readBigUInt64BE()
 }
 
+/**
+ * Convert an Antelope name to a hex string
+ * @param name Antelope name
+ * @returns The hex as string corresponding to the name
+ */
 export function nameToFromHex(name: string) {
   return nameToUint64(name).toString(16).padStart(16, '0')
 }

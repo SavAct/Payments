@@ -170,7 +170,7 @@ void savactsavpay::pay(const vector<char>& fromVec, const string& to, asset fund
     if (is_vote) {
         vp = Conversion::GetVoteParameters(*memo);
         pT = vp.type;
-        check(vp.endtime < time, "Vote time have to be lower than end time.");
+        check(vp.endtime < time, "Vote time has to be lower than end time.");
         check(vp.selected < vp.optionCount, "Selected option is not available.");
         memo = &(vp.decoded);
     }

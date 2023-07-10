@@ -8,7 +8,6 @@ import { Account, Contract, GetTableRowsOptions, ExtendedAsset, ExtendedSymbol, 
 
 // Table row types
 export interface SavactsavpayLink {
-	platform: string;
 	url: string;
 	note: string;
 }
@@ -28,6 +27,7 @@ export interface SavactsavpayAddvote {
 	t: number;
 	rtoken: string;
 	rtcontract: string|number;
+	title: string;
 	voptions: Array<string>;
 	links: Array<SavactsavpayLink>;
 }
@@ -195,6 +195,7 @@ export interface SavactsavpayVotes {
 	vt: number;
 	rtoken: string;
 	rtcontract: string|number;
+	title: string;
 	options: Array<SavactsavpayOptionData>;
 	links: Array<SavactsavpayLink>;
 	a: number|string;
@@ -209,7 +210,7 @@ export interface SavactsavpayVotes {
 
 export interface Savactsavpay extends Contract {
 	// Actions
-	addvote(ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, voptions: Array<string>, links: Array<SavactsavpayLink>, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	addvote(ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, title: string, voptions: Array<string>, links: Array<SavactsavpayLink>, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend(to: string|number, id: number|string, time: number, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig(to: string, id: number|string, time: number, sigtime: number, sig: string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize(to: string, id: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
@@ -228,7 +229,7 @@ export interface Savactsavpay extends Contract {
 	removevote(ramBy: string|number, index: number|string, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	settoken(tokenContract: string|number, tokenSymbol: string, openBytes: number, active: boolean, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	// Actions with object params. (This is WIP and not ready for use)
-	addvote_object_params(params: {ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, voptions: Array<string>, links: Array<SavactsavpayLink>}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
+	addvote_object_params(params: {ramBy: string|number, holder: string, vid: number, vt: number, t: number, rtoken: string, rtcontract: string|number, title: string, voptions: Array<string>, links: Array<SavactsavpayLink>}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extend_object_params(params: {to: string|number, id: number|string, time: number}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	extendsig_object_params(params: {to: string, id: number|string, time: number, sigtime: number, sig: string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
 	finalize_object_params(params: {to: string, id: number|string}, options?: { from?: Account, auths?: ActorPermission[] }): Promise<any>;
