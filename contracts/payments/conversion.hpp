@@ -15,7 +15,7 @@ public:
         WebAuthN = 2
     };
 
-    enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 };
+    enum PaymentType : uint8_t { payment = 0, vote = 1, checked_vote = 2 }; // checked_vote are the public votes
 
     /** Convert the pulic key from string to public key type.
      *	@return The public key. Returns the type on public_key.index()
@@ -636,8 +636,8 @@ public:
         // Get vote type
         auto itr = vch.begin();
         switch (*itr) {
-        case 0x01: vp.type = PaymentType::vote; break;
-        case 0x02: vp.type = PaymentType::checked_vote; break;
+        case 0x01: vp.type = PaymentType::vote; break;          // Private vote 
+        case 0x02: vp.type = PaymentType::checked_vote; break;  // Public vote
         default: check(false, "Unknown vote type.");
         }
         // Get all other parameters

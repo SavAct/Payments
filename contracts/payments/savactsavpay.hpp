@@ -1,4 +1,4 @@
-#define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
+// #define dev // Attention: This activates the system contract for the test environment. It has to be undefined on release mode
 
 #ifndef dev
 // Production mode for EOS mainnet
@@ -1276,6 +1276,7 @@ private:
         /**
          * @brief Remove vote from a public list. This can only be done after the deadline has end or if there is no active payment.
          *
+         * @param ramBy Ram payer of this entry
          * @param index Primary key of the vote entry
          */
         ACTION removevote(const name& ramBy, const uint64_t index) {

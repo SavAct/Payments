@@ -4,6 +4,88 @@
     "types": [],
     "structs": [
         {
+            "name": "Link",
+            "base": "",
+            "fields": [
+                {
+                    "name": "url",
+                    "type": "string"
+                },
+                {
+                    "name": "note",
+                    "type": "string"
+                }
+            ]
+        },
+        {
+            "name": "OptionData",
+            "base": "",
+            "fields": [
+                {
+                    "name": "o",
+                    "type": "string"
+                },
+                {
+                    "name": "a",
+                    "type": "uint64"
+                },
+                {
+                    "name": "c",
+                    "type": "uint64"
+                },
+                {
+                    "name": "r",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
+            "name": "addvote",
+            "base": "",
+            "fields": [
+                {
+                    "name": "ramBy",
+                    "type": "name"
+                },
+                {
+                    "name": "holder",
+                    "type": "string"
+                },
+                {
+                    "name": "vid",
+                    "type": "uint8"
+                },
+                {
+                    "name": "vt",
+                    "type": "uint32"
+                },
+                {
+                    "name": "t",
+                    "type": "uint32"
+                },
+                {
+                    "name": "rtoken",
+                    "type": "asset"
+                },
+                {
+                    "name": "rtcontract",
+                    "type": "name"
+                },
+                {
+                    "name": "title",
+                    "type": "string"
+                },
+                {
+                    "name": "voptions",
+                    "type": "string[]"
+                },
+                {
+                    "name": "links",
+                    "type": "Link[]"
+                }
+            ]
+        },
+        {
             "name": "data",
             "base": "",
             "fields": [
@@ -434,6 +516,20 @@
             ]
         },
         {
+            "name": "removevote",
+            "base": "",
+            "fields": [
+                {
+                    "name": "ramBy",
+                    "type": "name"
+                },
+                {
+                    "name": "index",
+                    "type": "uint64"
+                }
+            ]
+        },
+        {
             "name": "settoken",
             "base": "",
             "fields": [
@@ -472,9 +568,80 @@
                     "type": "bool"
                 }
             ]
+        },
+        {
+            "name": "votes",
+            "base": "",
+            "fields": [
+                {
+                    "name": "index",
+                    "type": "uint64"
+                },
+                {
+                    "name": "ramBy",
+                    "type": "name"
+                },
+                {
+                    "name": "holder",
+                    "type": "bytes"
+                },
+                {
+                    "name": "vid",
+                    "type": "uint8"
+                },
+                {
+                    "name": "t",
+                    "type": "uint32"
+                },
+                {
+                    "name": "vt",
+                    "type": "uint32"
+                },
+                {
+                    "name": "rtoken",
+                    "type": "asset"
+                },
+                {
+                    "name": "rtcontract",
+                    "type": "name"
+                },
+                {
+                    "name": "title",
+                    "type": "string"
+                },
+                {
+                    "name": "options",
+                    "type": "OptionData[]"
+                },
+                {
+                    "name": "links",
+                    "type": "Link[]"
+                },
+                {
+                    "name": "a",
+                    "type": "uint64"
+                },
+                {
+                    "name": "f",
+                    "type": "uint64"
+                },
+                {
+                    "name": "i",
+                    "type": "uint64"
+                },
+                {
+                    "name": "r",
+                    "type": "uint64"
+                }
+            ]
         }
     ],
     "actions": [
+        {
+            "name": "addvote",
+            "type": "addvote",
+            "ricardian_contract": ""
+        },
         {
             "name": "extend",
             "type": "extend",
@@ -551,6 +718,11 @@
             "ricardian_contract": ""
         },
         {
+            "name": "removevote",
+            "type": "removevote",
+            "ricardian_contract": ""
+        },
+        {
             "name": "settoken",
             "type": "settoken",
             "ricardian_contract": ""
@@ -588,6 +760,13 @@
         {
             "name": "tokens",
             "type": "tokens",
+            "index_type": "i64",
+            "key_names": [],
+            "key_types": []
+        },
+        {
+            "name": "votes",
+            "type": "votes",
             "index_type": "i64",
             "key_names": [],
             "key_types": []
